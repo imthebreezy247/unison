@@ -1,0 +1,337 @@
+import Database from 'better-sqlite3';
+import * as path from 'path';
+import * as fs from 'fs';
+import log from 'electron-log';
+
+export interface Contact {
+  id: string;
+  first_name: string;
+  last_name: string;
+  display_name: string;
+  phone_numbers: string[];
+  email_addresses: string[];
+  avatar_url?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Message {
+  id: string;
+  contact_id: string;
+  content: string;
+  message_type: 'sms' | 'imessage' | 'notification';
+  direction: 'incoming' | 'outgoing';
+  timestamp: string;
+  read_status: boolean;
+  attachments?: string[];
+  created_at: string;
+}
+
+export interface CallLog {
+  id: string;
+  contact_id: string;
+  phone_number: string;
+  direction: 'incoming' | 'outgoing' | 'missed';
+  duration: number;
+  timestamp: string;
+  created_at: string;
+}
+
+export interface FileTransfer {
+  id: string;
+  filename: string;
+  source_path: string;
+  destination_path: string;
+  file_size: number;
+  transfer_type: 'import' | 'export';
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  progress: number;
+  created_at: string;
+  completed_at?: string;
+}
+
+export interface SyncStatus {
+  id: string;
+  device_id: string;
+  sync_type: 'contacts' | 'messages' | 'calls' | 'files';
+  last_sync: string;
+  status: 'success' | 'failed' | 'in_progress';
+  error_message?: string;
+  records_synced: number;
+}
+
+export class DatabaseManager {
+  private db: Database.Database | null = null;
+  private dbPath: string;
+
+  constructor() {
+    // Create database directory if it doesn't exist
+    const dbDir = path.join(process.cwd(), 'db');
+    if (!fs.existsSync(dbDir)) {
+      fs.mkdirSync(dbDir, { recursive: true });
+    }
+    
+    this.dbPath = path.join(dbDir, 'unisonx.db');
+  }
+
+  async initialize(): Promise<void> {
+    try {
+      this.db = new Database(this.dbPath);
+      this.db.pragma('journal_mode = WAL');
+      this.db.pragma('foreign_keys = ON');
+      
+      await this.createTables();
+      log.info('Database initialized successfully');
+    } catch (error) {
+      log.error('Failed to initialize database:', error);
+      throw error;
+    }
+  }
+
+  private async createTables(): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    // Contacts table
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS contacts (
+        id TEXT PRIMARY KEY,
+        first_name TEXT,
+        last_name TEXT,
+        display_name TEXT NOT NULL,
+        phone_numbers TEXT, -- JSON array
+        email_addresses TEXT, -- JSON array
+        avatar_url TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Messages table
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS messages (
+        id TEXT PRIMARY KEY,
+        contact_id TEXT,
+        content TEXT NOT NULL,
+        message_type TEXT CHECK(message_type IN ('sms', 'imessage', 'notification')) NOT NULL,
+        direction TEXT CHECK(direction IN ('incoming', 'outgoing')) NOT NULL,
+        timestamp DATETIME NOT NULL,
+        read_status BOOLEAN DEFAULT FALSE,
+        attachments TEXT, -- JSON array
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (contact_id) REFERENCES contacts (id)
+      )
+    `);
+
+    // Call logs table
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS call_logs (
+        id TEXT PRIMARY KEY,
+        contact_id TEXT,
+        phone_number TEXT NOT NULL,
+        direction TEXT CHECK(direction IN ('incoming', 'outgoing', 'missed')) NOT NULL,
+        duration INTEGER DEFAULT 0, -- in seconds
+        timestamp DATETIME NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (contact_id) REFERENCES contacts (id)
+      )
+    `);
+
+    // File transfers table
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS file_transfers (
+        id TEXT PRIMARY KEY,
+        filename TEXT NOT NULL,
+        source_path TEXT NOT NULL,
+        destination_path TEXT NOT NULL,
+        file_size INTEGER NOT NULL,
+        transfer_type TEXT CHECK(transfer_type IN ('import', 'export')) NOT NULL,
+        status TEXT CHECK(status IN ('pending', 'in_progress', 'completed', 'failed')) DEFAULT 'pending',
+        progress INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        completed_at DATETIME
+      )
+    `);
+
+    // Sync status table
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS sync_status (
+        id TEXT PRIMARY KEY,
+        device_id TEXT NOT NULL,
+        sync_type TEXT CHECK(sync_type IN ('contacts', 'messages', 'calls', 'files')) NOT NULL,
+        last_sync DATETIME NOT NULL,
+        status TEXT CHECK(status IN ('success', 'failed', 'in_progress')) NOT NULL,
+        error_message TEXT,
+        records_synced INTEGER DEFAULT 0,
+        UNIQUE(device_id, sync_type)
+      )
+    `);
+
+    // Create indexes for better performance
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_messages_contact_id ON messages(contact_id);
+      CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
+      CREATE INDEX IF NOT EXISTS idx_call_logs_contact_id ON call_logs(contact_id);
+      CREATE INDEX IF NOT EXISTS idx_call_logs_timestamp ON call_logs(timestamp);
+      CREATE INDEX IF NOT EXISTS idx_file_transfers_status ON file_transfers(status);
+    `);
+
+    log.info('Database tables created successfully');
+  }
+
+  async query(sql: string, params: any[] = []): Promise<any[]> {
+    if (!this.db) throw new Error('Database not initialized');
+    
+    try {
+      const stmt = this.db.prepare(sql);
+      return stmt.all(params);
+    } catch (error) {
+      log.error('Database query error:', error);
+      throw error;
+    }
+  }
+
+  async run(sql: string, params: any[] = []): Promise<any> {
+    if (!this.db) throw new Error('Database not initialized');
+    
+    try {
+      const stmt = this.db.prepare(sql);
+      return stmt.run(params);
+    } catch (error) {
+      log.error('Database run error:', error);
+      throw error;
+    }
+  }
+
+  // Contact methods
+  async insertContact(contact: Omit<Contact, 'created_at' | 'updated_at'>): Promise<void> {
+    const sql = `
+      INSERT INTO contacts (id, first_name, last_name, display_name, phone_numbers, email_addresses, avatar_url)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `;
+    await this.run(sql, [
+      contact.id,
+      contact.first_name,
+      contact.last_name,
+      contact.display_name,
+      JSON.stringify(contact.phone_numbers),
+      JSON.stringify(contact.email_addresses),
+      contact.avatar_url
+    ]);
+  }
+
+  async getContacts(): Promise<Contact[]> {
+    const contacts = await this.query('SELECT * FROM contacts ORDER BY display_name');
+    return contacts.map(contact => ({
+      ...contact,
+      phone_numbers: JSON.parse(contact.phone_numbers || '[]'),
+      email_addresses: JSON.parse(contact.email_addresses || '[]')
+    }));
+  }
+
+  // Message methods
+  async insertMessage(message: Omit<Message, 'created_at'>): Promise<void> {
+    const sql = `
+      INSERT INTO messages (id, contact_id, content, message_type, direction, timestamp, read_status, attachments)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+    await this.run(sql, [
+      message.id,
+      message.contact_id,
+      message.content,
+      message.message_type,
+      message.direction,
+      message.timestamp,
+      message.read_status,
+      JSON.stringify(message.attachments || [])
+    ]);
+  }
+
+  async getMessages(contactId?: string, limit: number = 100): Promise<Message[]> {
+    let sql = 'SELECT * FROM messages';
+    let params: any[] = [];
+    
+    if (contactId) {
+      sql += ' WHERE contact_id = ?';
+      params.push(contactId);
+    }
+    
+    sql += ' ORDER BY timestamp DESC LIMIT ?';
+    params.push(limit);
+    
+    const messages = await this.query(sql, params);
+    return messages.map(message => ({
+      ...message,
+      attachments: JSON.parse(message.attachments || '[]'),
+      read_status: Boolean(message.read_status)
+    }));
+  }
+
+  // Call log methods
+  async insertCallLog(callLog: Omit<CallLog, 'created_at'>): Promise<void> {
+    const sql = `
+      INSERT INTO call_logs (id, contact_id, phone_number, direction, duration, timestamp)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `;
+    await this.run(sql, [
+      callLog.id,
+      callLog.contact_id,
+      callLog.phone_number,
+      callLog.direction,
+      callLog.duration,
+      callLog.timestamp
+    ]);
+  }
+
+  async getCallLogs(limit: number = 100): Promise<CallLog[]> {
+    return await this.query('SELECT * FROM call_logs ORDER BY timestamp DESC LIMIT ?', [limit]);
+  }
+
+  // File transfer methods
+  async insertFileTransfer(transfer: Omit<FileTransfer, 'created_at' | 'completed_at'>): Promise<void> {
+    const sql = `
+      INSERT INTO file_transfers (id, filename, source_path, destination_path, file_size, transfer_type, status, progress)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+    await this.run(sql, [
+      transfer.id,
+      transfer.filename,
+      transfer.source_path,
+      transfer.destination_path,
+      transfer.file_size,
+      transfer.transfer_type,
+      transfer.status,
+      transfer.progress
+    ]);
+  }
+
+  async updateFileTransferProgress(id: string, progress: number, status: string): Promise<void> {
+    const sql = `
+      UPDATE file_transfers 
+      SET progress = ?, status = ?, completed_at = CASE WHEN ? = 'completed' THEN CURRENT_TIMESTAMP ELSE completed_at END
+      WHERE id = ?
+    `;
+    await this.run(sql, [progress, status, status, id]);
+  }
+
+  // Sync status methods
+  async updateSyncStatus(deviceId: string, syncType: string, status: string, recordsSynced: number = 0, errorMessage?: string): Promise<void> {
+    const sql = `
+      INSERT OR REPLACE INTO sync_status (id, device_id, sync_type, last_sync, status, error_message, records_synced)
+      VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?)
+    `;
+    const id = `${deviceId}_${syncType}`;
+    await this.run(sql, [id, deviceId, syncType, status, errorMessage, recordsSynced]);
+  }
+
+  async getSyncStatus(deviceId: string): Promise<SyncStatus[]> {
+    return await this.query('SELECT * FROM sync_status WHERE device_id = ?', [deviceId]);
+  }
+
+  close(): void {
+    if (this.db) {
+      this.db.close();
+      this.db = null;
+      log.info('Database connection closed');
+    }
+  }
+}
