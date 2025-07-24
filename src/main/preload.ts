@@ -72,6 +72,21 @@ interface UnisonXAPI {
     export: (format?: 'json' | 'csv' | 'txt') => Promise<any>;
   };
 
+  // File manager operations
+  files: {
+    startTransfer: (transferRequest: any) => Promise<string>;
+    getTransfers: (limit?: number, offset?: number, filters?: any) => Promise<any[]>;
+    getActiveTransfers: () => Promise<any[]>;
+    pauseTransfer: (transferId: string) => Promise<void>;
+    resumeTransfer: (transferId: string) => Promise<void>;
+    cancelTransfer: (transferId: string) => Promise<void>;
+    getStatistics: () => Promise<any>;
+    export: (format?: 'json' | 'csv' | 'txt') => Promise<any>;
+    createFolder: (folderData: any) => Promise<string>;
+    getFolders: () => Promise<any[]>;
+    addToFolder: (transferId: string, folderId: string) => Promise<void>;
+  };
+
   // System operations
   system: {
     minimize: () => void;
@@ -161,6 +176,21 @@ const api: UnisonXAPI = {
     addNotes: (callId: string, notes: string) => ipcRenderer.invoke('calls:add-notes', callId, notes),
     getStatistics: () => ipcRenderer.invoke('calls:get-statistics'),
     export: (format?: 'json' | 'csv' | 'txt') => ipcRenderer.invoke('calls:export', format),
+  },
+
+  // File manager operations
+  files: {
+    startTransfer: (transferRequest: any) => ipcRenderer.invoke('files:start-transfer', transferRequest),
+    getTransfers: (limit?: number, offset?: number, filters?: any) => ipcRenderer.invoke('files:get-transfers', limit, offset, filters),
+    getActiveTransfers: () => ipcRenderer.invoke('files:get-active-transfers'),
+    pauseTransfer: (transferId: string) => ipcRenderer.invoke('files:pause-transfer', transferId),
+    resumeTransfer: (transferId: string) => ipcRenderer.invoke('files:resume-transfer', transferId),
+    cancelTransfer: (transferId: string) => ipcRenderer.invoke('files:cancel-transfer', transferId),
+    getStatistics: () => ipcRenderer.invoke('files:get-statistics'),
+    export: (format?: 'json' | 'csv' | 'txt') => ipcRenderer.invoke('files:export', format),
+    createFolder: (folderData: any) => ipcRenderer.invoke('files:create-folder', folderData),
+    getFolders: () => ipcRenderer.invoke('files:get-folders'),
+    addToFolder: (transferId: string, folderId: string) => ipcRenderer.invoke('files:add-to-folder', transferId, folderId),
   },
 
   // System operations

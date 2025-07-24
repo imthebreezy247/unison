@@ -9,6 +9,8 @@ import { ContactSyncService } from './services/ContactSyncService';
 import { ContactImportExportService } from './services/ContactImportExportService';
 import { MessageSyncService } from './services/MessageSyncService';
 import { CallLogService } from './services/CallLogService';
+import { FileManagerService } from './services/FileManagerService';
+import { SettingsService } from './services/SettingsService';
 
 // Configure logging
 log.transports.file.level = 'info';
@@ -24,6 +26,8 @@ class UnisonXApp {
   private contactImportExportService: ContactImportExportService;
   private messageSyncService: MessageSyncService;
   private callLogService: CallLogService;
+  private fileManagerService: FileManagerService;
+  private settingsService: SettingsService;
 
   constructor() {
     this.databaseManager = new DatabaseManager();
@@ -33,6 +37,8 @@ class UnisonXApp {
     this.contactImportExportService = new ContactImportExportService(this.databaseManager);
     this.messageSyncService = new MessageSyncService(this.databaseManager);
     this.callLogService = new CallLogService(this.databaseManager);
+    this.fileManagerService = new FileManagerService(this.databaseManager);
+    this.settingsService = new SettingsService(this.databaseManager);
     
     this.initializeApp();
   }
@@ -603,6 +609,251 @@ class UnisonXApp {
         throw error;
       }
     });
+
+    // File manager operations
+    ipcMain.handle('files:start-transfer', async (event, transferRequest: any) => {
+      try {
+        return await this.fileManagerService.startTransfer(transferRequest);
+      } catch (error) {
+        log.error('Start transfer error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('files:get-transfers', async (event, limit?: number, offset?: number, filters?: any) => {
+      try {
+        return await this.fileManagerService.getTransfers(limit, offset, filters);
+      } catch (error) {
+        log.error('Get transfers error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('files:get-active-transfers', async () => {
+      try {
+        return this.fileManagerService.getActiveTransfers();
+      } catch (error) {
+        log.error('Get active transfers error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('files:pause-transfer', async (event, transferId: string) => {
+      try {
+        return await this.fileManagerService.pauseTransfer(transferId);
+      } catch (error) {
+        log.error('Pause transfer error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('files:resume-transfer', async (event, transferId: string) => {
+      try {
+        return await this.fileManagerService.resumeTransfer(transferId);
+      } catch (error) {
+        log.error('Resume transfer error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('files:cancel-transfer', async (event, transferId: string) => {
+      try {
+        return await this.fileManagerService.cancelTransfer(transferId);
+      } catch (error) {
+        log.error('Cancel transfer error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('files:get-statistics', async () => {
+      try {
+        return await this.fileManagerService.getTransferStatistics();
+      } catch (error) {
+        log.error('Get file statistics error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('files:export', async (event, format: 'json' | 'csv' | 'txt' = 'json') => {
+      try {
+        return await this.fileManagerService.exportTransfers(format);
+      } catch (error) {
+        log.error('Export transfers error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('files:create-folder', async (event, folderData: any) => {
+      try {
+        return await this.fileManagerService.createFolder(folderData);
+      } catch (error) {
+        log.error('Create folder error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('files:get-folders', async () => {
+      try {
+        return await this.fileManagerService.getFolders();
+      } catch (error) {
+        log.error('Get folders error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('files:add-to-folder', async (event, transferId: string, folderId: string) => {
+      try {
+        return await this.fileManagerService.addFileToFolder(transferId, folderId);
+      } catch (error) {
+        log.error('Add to folder error:', error);
+        throw error;
+      }
+    });
+
+    // Settings and preferences operations
+    ipcMain.handle('settings:get', async (event, category: string, key: string, defaultValue?: any) => {
+      try {
+        return await this.settingsService.getSetting(category, key, defaultValue);
+      } catch (error) {
+        log.error('Get setting error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('settings:set', async (event, category: string, key: string, value: any, settingType?: string) => {
+      try {
+        return await this.settingsService.setSetting(category, key, value, settingType);
+      } catch (error) {
+        log.error('Set setting error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('settings:get-category', async (event, category: string) => {
+      try {
+        return await this.settingsService.getSettingsByCategory(category);
+      } catch (error) {
+        log.error('Get settings category error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('settings:get-all', async () => {
+      try {
+        return await this.settingsService.getAllSettings();
+      } catch (error) {
+        log.error('Get all settings error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('preferences:get', async (event, group: string, key: string, defaultValue?: any) => {
+      try {
+        return await this.settingsService.getPreference(group, key, defaultValue);
+      } catch (error) {
+        log.error('Get preference error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('preferences:set', async (event, group: string, key: string, value: any, isSynced?: boolean) => {
+      try {
+        return await this.settingsService.setPreference(group, key, value, isSynced);
+      } catch (error) {
+        log.error('Set preference error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('themes:get-all', async () => {
+      try {
+        return await this.settingsService.getThemes();
+      } catch (error) {
+        log.error('Get themes error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('themes:get-active', async () => {
+      try {
+        return await this.settingsService.getActiveTheme();
+      } catch (error) {
+        log.error('Get active theme error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('themes:set-active', async (event, themeId: string) => {
+      try {
+        return await this.settingsService.setActiveTheme(themeId);
+      } catch (error) {
+        log.error('Set active theme error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('themes:create-custom', async (event, themeData: any) => {
+      try {
+        return await this.settingsService.createCustomTheme(themeData);
+      } catch (error) {
+        log.error('Create custom theme error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('crm:get-integrations', async () => {
+      try {
+        return await this.settingsService.getCrmIntegrations();
+      } catch (error) {
+        log.error('Get CRM integrations error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('crm:create-integration', async (event, integrationData: any) => {
+      try {
+        return await this.settingsService.createCrmIntegration(integrationData);
+      } catch (error) {
+        log.error('Create CRM integration error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('crm:update-integration', async (event, integrationId: string, updateData: any) => {
+      try {
+        return await this.settingsService.updateCrmIntegration(integrationId, updateData);
+      } catch (error) {
+        log.error('Update CRM integration error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('backup:create', async (event, backupType: string, options?: any) => {
+      try {
+        return await this.settingsService.createBackup(backupType, options);
+      } catch (error) {
+        log.error('Create backup error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('backup:restore', async (event, backupId: string) => {
+      try {
+        return await this.settingsService.restoreBackup(backupId);
+      } catch (error) {
+        log.error('Restore backup error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('backup:get-all', async () => {
+      try {
+        return await this.settingsService.getBackups();
+      } catch (error) {
+        log.error('Get backups error:', error);
+        throw error;
+      }
+    });
   }
 
   private async initializeServices(): Promise<void> {
@@ -631,6 +882,14 @@ class UnisonXApp {
       await this.callLogService.initialize();
       log.info('Call log service initialized successfully');
 
+      // Initialize file manager service
+      await this.fileManagerService.initialize();
+      log.info('File manager service initialized successfully');
+
+      // Initialize settings service
+      await this.settingsService.initialize();
+      log.info('Settings service initialized successfully');
+
       // Start device scanning
       this.deviceManager.startScanning();
       log.info('Device scanning started');
@@ -646,6 +905,8 @@ class UnisonXApp {
       this.contactSyncService.cleanup();
       this.messageSyncService.cleanup();
       this.callLogService.cleanup();
+      this.fileManagerService.cleanup();
+      this.settingsService.cleanup();
       this.databaseManager.close();
       log.info('UnisonX cleanup completed');
     } catch (error) {

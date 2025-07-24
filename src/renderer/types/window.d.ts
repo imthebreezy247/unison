@@ -72,6 +72,21 @@ declare global {
         export: (format?: 'json' | 'csv' | 'txt') => Promise<any>;
       };
 
+      // File manager operations
+      files: {
+        startTransfer: (transferRequest: any) => Promise<string>;
+        getTransfers: (limit?: number, offset?: number, filters?: any) => Promise<any[]>;
+        getActiveTransfers: () => Promise<any[]>;
+        pauseTransfer: (transferId: string) => Promise<void>;
+        resumeTransfer: (transferId: string) => Promise<void>;
+        cancelTransfer: (transferId: string) => Promise<void>;
+        getStatistics: () => Promise<any>;
+        export: (format?: 'json' | 'csv' | 'txt') => Promise<any>;
+        createFolder: (folderData: any) => Promise<string>;
+        getFolders: () => Promise<any[]>;
+        addToFolder: (transferId: string, folderId: string) => Promise<void>;
+      };
+
       // System operations
       system: {
         minimize: () => void;

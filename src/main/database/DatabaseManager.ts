@@ -18,15 +18,60 @@ export interface Contact {
 
 export interface FileTransfer {
   id: string;
+  device_id?: string;
   filename: string;
   source_path: string;
   destination_path: string;
   file_size: number;
-  transfer_type: 'import' | 'export';
-  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  file_type?: string;
+  mime_type?: string;
+  file_extension?: string;
+  transfer_type: 'import' | 'export' | 'sync';
+  transfer_method: 'usb' | 'wifi' | 'bluetooth' | 'airdrop';
+  status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'cancelled' | 'paused';
   progress: number;
+  transfer_speed: number;
+  bytes_transferred: number;
+  error_message?: string;
+  checksum?: string;
+  thumbnail_path?: string;
+  metadata?: string;
+  folder_path?: string;
+  original_created_date?: string;
+  original_modified_date?: string;
+  tags?: string;
+  favorite: boolean;
+  auto_delete_source: boolean;
   created_at: string;
+  started_at?: string;
   completed_at?: string;
+  updated_at: string;
+}
+
+export interface FileFolder {
+  id: string;
+  name: string;
+  parent_folder_id?: string;
+  folder_type: 'custom' | 'photos' | 'videos' | 'documents' | 'downloads' | 'trash';
+  color: string;
+  icon: string;
+  description?: string;
+  auto_organize: boolean;
+  auto_organize_rules?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FileShare {
+  id: string;
+  file_transfer_id: string;
+  share_type: 'link' | 'airdrop' | 'email' | 'cloud';
+  share_url?: string;
+  expires_at?: string;
+  password_hash?: string;
+  download_count: number;
+  max_downloads?: number;
+  created_at: string;
 }
 
 export interface SyncStatus {
@@ -37,6 +82,145 @@ export interface SyncStatus {
   status: 'success' | 'failed' | 'in_progress';
   error_message?: string;
   records_synced: number;
+}
+
+export interface AppSetting {
+  id: string;
+  category: string;
+  setting_key: string;
+  setting_value: string;
+  setting_type: 'string' | 'number' | 'boolean' | 'json' | 'color';
+  display_name?: string;
+  description?: string;
+  default_value?: string;
+  is_user_configurable: boolean;
+  requires_restart: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserPreference {
+  id: string;
+  preference_group: string;
+  preference_key: string;
+  preference_value: string;
+  preference_type: 'string' | 'number' | 'boolean' | 'json' | 'array';
+  is_synced: boolean;
+  last_accessed?: string;
+  access_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DeviceConfiguration {
+  id: string;
+  device_id: string;
+  config_category: string;
+  config_key: string;
+  config_value: string;
+  config_type: 'string' | 'number' | 'boolean' | 'json';
+  is_device_specific: boolean;
+  last_used?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CrmIntegration {
+  id: string;
+  crm_provider: string;
+  integration_name: string;
+  api_endpoint?: string;
+  api_key_hash?: string;
+  webhook_url?: string;
+  sync_settings?: string;
+  field_mappings?: string;
+  sync_frequency: number;
+  last_sync?: string;
+  sync_enabled: boolean;
+  error_count: number;
+  last_error?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CrmSyncLog {
+  id: string;
+  integration_id: string;
+  sync_type: 'contacts' | 'messages' | 'calls' | 'files' | 'full';
+  sync_direction: 'push' | 'pull' | 'bidirectional';
+  records_processed: number;
+  records_successful: number;
+  records_failed: number;
+  sync_duration?: number;
+  sync_status: 'success' | 'partial' | 'failed';
+  error_details?: string;
+  sync_metadata?: string;
+  started_at: string;
+  completed_at?: string;
+  created_at: string;
+}
+
+export interface AppTheme {
+  id: string;
+  theme_name: string;
+  theme_type: 'light' | 'dark' | 'auto' | 'custom';
+  color_scheme?: string;
+  font_settings?: string;
+  layout_settings?: string;
+  is_built_in: boolean;
+  is_active: boolean;
+  preview_image?: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AppShortcut {
+  id: string;
+  action_id: string;
+  action_name: string;
+  action_description?: string;
+  default_shortcut?: string;
+  current_shortcut?: string;
+  shortcut_category?: string;
+  is_global: boolean;
+  is_customizable: boolean;
+  is_enabled: boolean;
+  conflict_resolution?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NotificationRule {
+  id: string;
+  rule_name: string;
+  notification_type: 'message' | 'call' | 'file' | 'sync' | 'system';
+  trigger_conditions?: string;
+  notification_settings?: string;
+  priority_level: 'low' | 'normal' | 'high' | 'urgent';
+  delivery_methods?: string;
+  quiet_hours_start?: string;
+  quiet_hours_end?: string;
+  is_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AppBackup {
+  id: string;
+  backup_name: string;
+  backup_type: 'full' | 'settings' | 'data' | 'incremental';
+  backup_path: string;
+  backup_size?: number;
+  backup_metadata?: string;
+  includes_data: boolean;
+  includes_settings: boolean;
+  includes_media: boolean;
+  compression_type: string;
+  encryption_enabled: boolean;
+  auto_generated: boolean;
+  restore_count: number;
+  created_at: string;
 }
 
 export interface Message {
@@ -330,19 +514,85 @@ export class DatabaseManager {
       )
     `);
 
-    // File transfers table
+    // File transfers table with comprehensive tracking
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS file_transfers (
         id TEXT PRIMARY KEY,
+        device_id TEXT,
         filename TEXT NOT NULL,
         source_path TEXT NOT NULL,
         destination_path TEXT NOT NULL,
         file_size INTEGER NOT NULL,
-        transfer_type TEXT CHECK(transfer_type IN ('import', 'export')) NOT NULL,
-        status TEXT CHECK(status IN ('pending', 'in_progress', 'completed', 'failed')) DEFAULT 'pending',
+        file_type TEXT, -- image, video, document, audio, app, other
+        mime_type TEXT,
+        file_extension TEXT,
+        transfer_type TEXT CHECK(transfer_type IN ('import', 'export', 'sync')) NOT NULL,
+        transfer_method TEXT CHECK(transfer_method IN ('usb', 'wifi', 'bluetooth', 'airdrop')) DEFAULT 'usb',
+        status TEXT CHECK(status IN ('pending', 'in_progress', 'completed', 'failed', 'cancelled', 'paused')) DEFAULT 'pending',
         progress INTEGER DEFAULT 0,
+        transfer_speed INTEGER DEFAULT 0, -- bytes per second
+        bytes_transferred INTEGER DEFAULT 0,
+        error_message TEXT,
+        checksum TEXT, -- for integrity verification
+        thumbnail_path TEXT, -- for media files
+        metadata TEXT, -- JSON metadata for files
+        folder_path TEXT, -- iPhone folder structure
+        original_created_date DATETIME, -- original file creation date
+        original_modified_date DATETIME, -- original file modification date
+        tags TEXT, -- JSON array of user tags
+        favorite BOOLEAN DEFAULT FALSE,
+        auto_delete_source BOOLEAN DEFAULT FALSE,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        completed_at DATETIME
+        started_at DATETIME,
+        completed_at DATETIME,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // File folders/albums table for organization
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS file_folders (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        parent_folder_id TEXT,
+        folder_type TEXT CHECK(folder_type IN ('custom', 'photos', 'videos', 'documents', 'downloads', 'trash')) DEFAULT 'custom',
+        color TEXT DEFAULT '#3B82F6',
+        icon TEXT DEFAULT 'folder',
+        description TEXT,
+        auto_organize BOOLEAN DEFAULT FALSE,
+        auto_organize_rules TEXT, -- JSON rules for auto-organization
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (parent_folder_id) REFERENCES file_folders (id) ON DELETE CASCADE
+      )
+    `);
+
+    // File folder memberships for organizing files
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS file_folder_memberships (
+        id TEXT PRIMARY KEY,
+        file_transfer_id TEXT NOT NULL,
+        folder_id TEXT NOT NULL,
+        added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (file_transfer_id) REFERENCES file_transfers (id) ON DELETE CASCADE,
+        FOREIGN KEY (folder_id) REFERENCES file_folders (id) ON DELETE CASCADE,
+        UNIQUE(file_transfer_id, folder_id)
+      )
+    `);
+
+    // File sharing and permissions
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS file_shares (
+        id TEXT PRIMARY KEY,
+        file_transfer_id TEXT NOT NULL,
+        share_type TEXT CHECK(share_type IN ('link', 'airdrop', 'email', 'cloud')) NOT NULL,
+        share_url TEXT,
+        expires_at DATETIME,
+        password_hash TEXT,
+        download_count INTEGER DEFAULT 0,
+        max_downloads INTEGER,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (file_transfer_id) REFERENCES file_transfers (id) ON DELETE CASCADE
       )
     `);
 
@@ -391,6 +641,176 @@ export class DatabaseManager {
       )
     `);
 
+    // App settings and preferences table
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS app_settings (
+        id TEXT PRIMARY KEY,
+        category TEXT NOT NULL, -- appearance, sync, notifications, privacy, advanced
+        setting_key TEXT NOT NULL,
+        setting_value TEXT NOT NULL,
+        setting_type TEXT CHECK(setting_type IN ('string', 'number', 'boolean', 'json', 'color')) DEFAULT 'string',
+        display_name TEXT,
+        description TEXT,
+        default_value TEXT,
+        is_user_configurable BOOLEAN DEFAULT TRUE,
+        requires_restart BOOLEAN DEFAULT FALSE,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(category, setting_key)
+      )
+    `);
+
+    // User preferences and customization
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS user_preferences (
+        id TEXT PRIMARY KEY,
+        preference_group TEXT NOT NULL, -- ui, sync, notifications, shortcuts, workflows
+        preference_key TEXT NOT NULL,
+        preference_value TEXT NOT NULL,
+        preference_type TEXT CHECK(preference_type IN ('string', 'number', 'boolean', 'json', 'array')) DEFAULT 'string',
+        is_synced BOOLEAN DEFAULT FALSE, -- sync across devices
+        last_accessed DATETIME,
+        access_count INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(preference_group, preference_key)
+      )
+    `);
+
+    // Device-specific configurations
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS device_configurations (
+        id TEXT PRIMARY KEY,
+        device_id TEXT NOT NULL,
+        config_category TEXT NOT NULL, -- sync, notifications, file_handling, security
+        config_key TEXT NOT NULL,
+        config_value TEXT NOT NULL,
+        config_type TEXT CHECK(config_type IN ('string', 'number', 'boolean', 'json')) DEFAULT 'string',
+        is_device_specific BOOLEAN DEFAULT TRUE,
+        last_used DATETIME,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(device_id, config_category, config_key)
+      )
+    `);
+
+    // CRM integration settings and hooks
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS crm_integrations (
+        id TEXT PRIMARY KEY,
+        crm_provider TEXT NOT NULL, -- salesforce, hubspot, pipedrive, custom
+        integration_name TEXT NOT NULL,
+        api_endpoint TEXT,
+        api_key_hash TEXT, -- encrypted API key
+        webhook_url TEXT,
+        sync_settings TEXT, -- JSON configuration
+        field_mappings TEXT, -- JSON field mapping configuration  
+        sync_frequency INTEGER DEFAULT 300, -- seconds
+        last_sync DATETIME,
+        sync_enabled BOOLEAN DEFAULT FALSE,
+        error_count INTEGER DEFAULT 0,
+        last_error TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // CRM sync history and logs
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS crm_sync_logs (
+        id TEXT PRIMARY KEY,
+        integration_id TEXT NOT NULL,
+        sync_type TEXT CHECK(sync_type IN ('contacts', 'messages', 'calls', 'files', 'full')) NOT NULL,
+        sync_direction TEXT CHECK(sync_direction IN ('push', 'pull', 'bidirectional')) NOT NULL,
+        records_processed INTEGER DEFAULT 0,
+        records_successful INTEGER DEFAULT 0,
+        records_failed INTEGER DEFAULT 0,
+        sync_duration INTEGER, -- milliseconds
+        sync_status TEXT CHECK(sync_status IN ('success', 'partial', 'failed')) NOT NULL,
+        error_details TEXT, -- JSON error information
+        sync_metadata TEXT, -- JSON metadata about sync
+        started_at DATETIME NOT NULL,
+        completed_at DATETIME,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (integration_id) REFERENCES crm_integrations (id) ON DELETE CASCADE
+      )
+    `);
+
+    // Application themes and customization
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS app_themes (
+        id TEXT PRIMARY KEY,
+        theme_name TEXT NOT NULL UNIQUE,
+        theme_type TEXT CHECK(theme_type IN ('light', 'dark', 'auto', 'custom')) NOT NULL,
+        color_scheme TEXT, -- JSON color configuration
+        font_settings TEXT, -- JSON font configuration
+        layout_settings TEXT, -- JSON layout preferences
+        is_built_in BOOLEAN DEFAULT FALSE,
+        is_active BOOLEAN DEFAULT FALSE,
+        preview_image TEXT, -- path to preview image
+        created_by TEXT DEFAULT 'system',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Keyboard shortcuts and hotkeys
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS app_shortcuts (
+        id TEXT PRIMARY KEY,
+        action_id TEXT NOT NULL UNIQUE,
+        action_name TEXT NOT NULL,
+        action_description TEXT,
+        default_shortcut TEXT, -- default key combination
+        current_shortcut TEXT, -- user-customized shortcut
+        shortcut_category TEXT, -- navigation, sync, files, calls, messages
+        is_global BOOLEAN DEFAULT FALSE, -- system-wide hotkey
+        is_customizable BOOLEAN DEFAULT TRUE,
+        is_enabled BOOLEAN DEFAULT TRUE,
+        conflict_resolution TEXT, -- how to handle conflicts
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Notification rules and preferences
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS notification_rules (
+        id TEXT PRIMARY KEY,
+        rule_name TEXT NOT NULL,
+        notification_type TEXT CHECK(notification_type IN ('message', 'call', 'file', 'sync', 'system')) NOT NULL,
+        trigger_conditions TEXT, -- JSON conditions for triggering
+        notification_settings TEXT, -- JSON notification configuration
+        priority_level TEXT CHECK(priority_level IN ('low', 'normal', 'high', 'urgent')) DEFAULT 'normal',
+        delivery_methods TEXT, -- JSON array of delivery methods
+        quiet_hours_start TIME,
+        quiet_hours_end TIME,
+        is_enabled BOOLEAN DEFAULT TRUE,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // App backups and restore points
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS app_backups (
+        id TEXT PRIMARY KEY,
+        backup_name TEXT NOT NULL,
+        backup_type TEXT CHECK(backup_type IN ('full', 'settings', 'data', 'incremental')) NOT NULL,
+        backup_path TEXT NOT NULL,
+        backup_size INTEGER,
+        backup_metadata TEXT, -- JSON backup information
+        includes_data BOOLEAN DEFAULT TRUE,
+        includes_settings BOOLEAN DEFAULT TRUE,
+        includes_media BOOLEAN DEFAULT FALSE,
+        compression_type TEXT DEFAULT 'gzip',
+        encryption_enabled BOOLEAN DEFAULT FALSE,
+        auto_generated BOOLEAN DEFAULT FALSE,
+        restore_count INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // Create indexes for better performance
     this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_messages_contact_id ON messages(contact_id);
@@ -410,8 +830,30 @@ export class DatabaseManager {
       CREATE INDEX IF NOT EXISTS idx_call_recordings_call_log_id ON call_recordings(call_log_id);
       CREATE INDEX IF NOT EXISTS idx_call_participants_call_log_id ON call_participants(call_log_id);
       CREATE INDEX IF NOT EXISTS idx_file_transfers_status ON file_transfers(status);
+      CREATE INDEX IF NOT EXISTS idx_file_transfers_device_id ON file_transfers(device_id);
+      CREATE INDEX IF NOT EXISTS idx_file_transfers_file_type ON file_transfers(file_type);
+      CREATE INDEX IF NOT EXISTS idx_file_transfers_transfer_type ON file_transfers(transfer_type);
+      CREATE INDEX IF NOT EXISTS idx_file_transfers_created_at ON file_transfers(created_at);
+      CREATE INDEX IF NOT EXISTS idx_file_folders_folder_type ON file_folders(folder_type);
+      CREATE INDEX IF NOT EXISTS idx_file_folders_parent_id ON file_folders(parent_folder_id);
+      CREATE INDEX IF NOT EXISTS idx_file_folder_memberships_folder_id ON file_folder_memberships(folder_id);
+      CREATE INDEX IF NOT EXISTS idx_file_folder_memberships_transfer_id ON file_folder_memberships(file_transfer_id);
+      CREATE INDEX IF NOT EXISTS idx_file_shares_transfer_id ON file_shares(file_transfer_id);
       CREATE INDEX IF NOT EXISTS idx_contacts_display_name ON contacts(display_name);
       CREATE INDEX IF NOT EXISTS idx_contact_group_memberships_group_id ON contact_group_memberships(group_id);
+      CREATE INDEX IF NOT EXISTS idx_app_settings_category ON app_settings(category);
+      CREATE INDEX IF NOT EXISTS idx_app_settings_key ON app_settings(setting_key);
+      CREATE INDEX IF NOT EXISTS idx_user_preferences_group ON user_preferences(preference_group);
+      CREATE INDEX IF NOT EXISTS idx_user_preferences_key ON user_preferences(preference_key);
+      CREATE INDEX IF NOT EXISTS idx_device_configurations_device_id ON device_configurations(device_id);
+      CREATE INDEX IF NOT EXISTS idx_device_configurations_category ON device_configurations(config_category);
+      CREATE INDEX IF NOT EXISTS idx_crm_integrations_provider ON crm_integrations(crm_provider);
+      CREATE INDEX IF NOT EXISTS idx_crm_sync_logs_integration_id ON crm_sync_logs(integration_id);
+      CREATE INDEX IF NOT EXISTS idx_crm_sync_logs_sync_type ON crm_sync_logs(sync_type);
+      CREATE INDEX IF NOT EXISTS idx_app_themes_type ON app_themes(theme_type);
+      CREATE INDEX IF NOT EXISTS idx_app_shortcuts_category ON app_shortcuts(shortcut_category);
+      CREATE INDEX IF NOT EXISTS idx_notification_rules_type ON notification_rules(notification_type);
+      CREATE INDEX IF NOT EXISTS idx_app_backups_type ON app_backups(backup_type);
     `);
 
     log.info('Database tables created successfully');
