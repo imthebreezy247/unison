@@ -5,6 +5,8 @@ import log from 'electron-log';
 import { DatabaseManager } from './database/DatabaseManager';
 import { DeviceManager } from './services/DeviceManager';
 import { NotificationManager } from './services/NotificationManager';
+import { ContactSyncService } from './services/ContactSyncService';
+import { ContactImportExportService } from './services/ContactImportExportService';
 
 // Configure logging
 log.transports.file.level = 'info';
@@ -16,11 +18,15 @@ class UnisonXApp {
   private databaseManager: DatabaseManager;
   private deviceManager: DeviceManager;
   private notificationManager: NotificationManager;
+  private contactSyncService: ContactSyncService;
+  private contactImportExportService: ContactImportExportService;
 
   constructor() {
     this.databaseManager = new DatabaseManager();
     this.deviceManager = new DeviceManager(this.databaseManager);
     this.notificationManager = new NotificationManager();
+    this.contactSyncService = new ContactSyncService(this.databaseManager);
+    this.contactImportExportService = new ContactImportExportService(this.databaseManager);
     
     this.initializeApp();
   }
@@ -239,6 +245,192 @@ class UnisonXApp {
     ipcMain.handle('log:error', (event, message: string, error?: any) => {
       log.error(`[Renderer] ${message}`, error);
     });
+
+    // Contact operations
+    ipcMain.handle('contacts:sync', async (event, deviceId: string, backupPath?: string) => {
+      try {
+        return await this.contactSyncService.syncContactsFromDevice(deviceId, backupPath);
+      } catch (error) {
+        log.error('Contact sync error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('contacts:search', async (event, query: string, filters?: any) => {
+      try {
+        return await this.contactSyncService.searchContacts(query, filters);
+      } catch (error) {
+        log.error('Contact search error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('contacts:update', async (event, contact: any) => {
+      try {
+        return await this.contactSyncService.updateContact(contact);
+      } catch (error) {
+        log.error('Contact update error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('contacts:delete', async (event, contactId: string) => {
+      try {
+        return await this.contactSyncService.deleteContact(contactId);
+      } catch (error) {
+        log.error('Contact delete error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('contacts:favorite', async (event, contactId: string) => {
+      try {
+        return await this.contactSyncService.addToFavorites(contactId);
+      } catch (error) {
+        log.error('Contact favorite error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('contacts:unfavorite', async (event, contactId: string) => {
+      try {
+        return await this.contactSyncService.removeFromFavorites(contactId);
+      } catch (error) {
+        log.error('Contact unfavorite error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('contacts:get-favorites', async () => {
+      try {
+        return await this.contactSyncService.getFavoriteContacts();
+      } catch (error) {
+        log.error('Get favorite contacts error:', error);
+        throw error;
+      }
+    });
+
+    // Contact group operations
+    ipcMain.handle('contacts:get-groups', async () => {
+      try {
+        return await this.databaseManager.query('SELECT * FROM contact_groups ORDER BY name');
+      } catch (error) {
+        log.error('Get contact groups error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('contacts:create-group', async (event, groupData: { name: string; color: string }) => {
+      try {
+        const groupId = `group-${Date.now()}`;
+        await this.databaseManager.run(
+          'INSERT INTO contact_groups (id, name, color) VALUES (?, ?, ?)',
+          [groupId, groupData.name, groupData.color]
+        );
+        return { id: groupId, ...groupData };
+      } catch (error) {
+        log.error('Create contact group error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('contacts:add-to-group', async (event, contactId: string, groupId: string) => {
+      try {
+        await this.databaseManager.run(
+          'INSERT OR IGNORE INTO contact_group_memberships (contact_id, group_id) VALUES (?, ?)',
+          [contactId, groupId]
+        );
+        return true;
+      } catch (error) {
+        log.error('Add contact to group error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('contacts:remove-from-group', async (event, contactId: string, groupId: string) => {
+      try {
+        await this.databaseManager.run(
+          'DELETE FROM contact_group_memberships WHERE contact_id = ? AND group_id = ?',
+          [contactId, groupId]
+        );
+        return true;
+      } catch (error) {
+        log.error('Remove contact from group error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('contacts:get-group-members', async (event, groupId: string) => {
+      try {
+        return await this.databaseManager.query(`
+          SELECT c.* FROM contacts c
+          JOIN contact_group_memberships cgm ON c.id = cgm.contact_id
+          WHERE cgm.group_id = ?
+          ORDER BY c.display_name
+        `, [groupId]);
+      } catch (error) {
+        log.error('Get group members error:', error);
+        throw error;
+      }
+    });
+
+    // Contact import/export operations
+    ipcMain.handle('contacts:export-csv', async () => {
+      try {
+        const contacts = await this.databaseManager.query('SELECT * FROM contacts ORDER BY display_name');
+        return await this.contactImportExportService.exportToCSV(contacts);
+      } catch (error) {
+        log.error('CSV export error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('contacts:export-vcard', async () => {
+      try {
+        const contacts = await this.databaseManager.query('SELECT * FROM contacts ORDER BY display_name');
+        return await this.contactImportExportService.exportToVCard(contacts);
+      } catch (error) {
+        log.error('vCard export error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('contacts:import-csv', async () => {
+      try {
+        return await this.contactImportExportService.importFromCSV();
+      } catch (error) {
+        log.error('CSV import error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('contacts:import-vcard', async () => {
+      try {
+        return await this.contactImportExportService.importFromVCard();
+      } catch (error) {
+        log.error('vCard import error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('contacts:export-selected', async (event, contactIds: string[], format: 'csv' | 'vcard') => {
+      try {
+        const placeholders = contactIds.map(() => '?').join(',');
+        const contacts = await this.databaseManager.query(
+          `SELECT * FROM contacts WHERE id IN (${placeholders}) ORDER BY display_name`,
+          contactIds
+        );
+        
+        if (format === 'csv') {
+          return await this.contactImportExportService.exportToCSV(contacts);
+        } else {
+          return await this.contactImportExportService.exportToVCard(contacts);
+        }
+      } catch (error) {
+        log.error('Selected contacts export error:', error);
+        throw error;
+      }
+    });
   }
 
   private async initializeServices(): Promise<void> {
@@ -255,6 +447,10 @@ class UnisonXApp {
       await this.notificationManager.initialize();
       log.info('Notification manager initialized successfully');
 
+      // Initialize contact sync service
+      await this.contactSyncService.initialize();
+      log.info('Contact sync service initialized successfully');
+
       // Start device scanning
       this.deviceManager.startScanning();
       log.info('Device scanning started');
@@ -267,6 +463,7 @@ class UnisonXApp {
   private cleanup(): void {
     try {
       this.deviceManager.stopScanning();
+      this.contactSyncService.cleanup();
       this.databaseManager.close();
       log.info('UnisonX cleanup completed');
     } catch (error) {

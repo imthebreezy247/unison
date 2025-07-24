@@ -101,6 +101,8 @@ export class DatabaseManager {
         phone_numbers TEXT, -- JSON array
         email_addresses TEXT, -- JSON array
         avatar_url TEXT,
+        organization TEXT,
+        last_contacted DATETIME,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
@@ -166,6 +168,37 @@ export class DatabaseManager {
       )
     `);
 
+    // Contact groups table
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS contact_groups (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        color TEXT DEFAULT '#3B82F6',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Contact group membership table
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS contact_group_memberships (
+        contact_id TEXT,
+        group_id TEXT,
+        added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (contact_id, group_id),
+        FOREIGN KEY (contact_id) REFERENCES contacts (id) ON DELETE CASCADE,
+        FOREIGN KEY (group_id) REFERENCES contact_groups (id) ON DELETE CASCADE
+      )
+    `);
+
+    // Contact favorites table
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS contact_favorites (
+        contact_id TEXT PRIMARY KEY,
+        added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (contact_id) REFERENCES contacts (id) ON DELETE CASCADE
+      )
+    `);
+
     // Create indexes for better performance
     this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_messages_contact_id ON messages(contact_id);
@@ -173,6 +206,8 @@ export class DatabaseManager {
       CREATE INDEX IF NOT EXISTS idx_call_logs_contact_id ON call_logs(contact_id);
       CREATE INDEX IF NOT EXISTS idx_call_logs_timestamp ON call_logs(timestamp);
       CREATE INDEX IF NOT EXISTS idx_file_transfers_status ON file_transfers(status);
+      CREATE INDEX IF NOT EXISTS idx_contacts_display_name ON contacts(display_name);
+      CREATE INDEX IF NOT EXISTS idx_contact_group_memberships_group_id ON contact_group_memberships(group_id);
     `);
 
     log.info('Database tables created successfully');

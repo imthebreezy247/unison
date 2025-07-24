@@ -25,6 +25,27 @@ interface UnisonXAPI {
     delete: (path: string) => Promise<boolean>;
   };
 
+  // Contact operations
+  contacts: {
+    sync: (deviceId: string, backupPath?: string) => Promise<any>;
+    search: (query: string, filters?: any) => Promise<any[]>;
+    update: (contact: any) => Promise<void>;
+    delete: (contactId: string) => Promise<void>;
+    favorite: (contactId: string) => Promise<void>;
+    unfavorite: (contactId: string) => Promise<void>;
+    getFavorites: () => Promise<any[]>;
+    getGroups: () => Promise<any[]>;
+    createGroup: (groupData: { name: string; color: string }) => Promise<any>;
+    addToGroup: (contactId: string, groupId: string) => Promise<boolean>;
+    removeFromGroup: (contactId: string, groupId: string) => Promise<boolean>;
+    getGroupMembers: (groupId: string) => Promise<any[]>;
+    exportCSV: () => Promise<any>;
+    exportVCard: () => Promise<any>;
+    importCSV: () => Promise<any>;
+    importVCard: () => Promise<any>;
+    exportSelected: (contactIds: string[], format: 'csv' | 'vcard') => Promise<any>;
+  };
+
   // System operations
   system: {
     minimize: () => void;
@@ -67,6 +88,27 @@ const api: UnisonXAPI = {
     transfer: (source: string, destination: string) => ipcRenderer.invoke('file:transfer', source, destination),
     list: (path: string) => ipcRenderer.invoke('file:list', path),
     delete: (path: string) => ipcRenderer.invoke('file:delete', path),
+  },
+
+  // Contact operations
+  contacts: {
+    sync: (deviceId: string, backupPath?: string) => ipcRenderer.invoke('contacts:sync', deviceId, backupPath),
+    search: (query: string, filters?: any) => ipcRenderer.invoke('contacts:search', query, filters),
+    update: (contact: any) => ipcRenderer.invoke('contacts:update', contact),
+    delete: (contactId: string) => ipcRenderer.invoke('contacts:delete', contactId),
+    favorite: (contactId: string) => ipcRenderer.invoke('contacts:favorite', contactId),
+    unfavorite: (contactId: string) => ipcRenderer.invoke('contacts:unfavorite', contactId),
+    getFavorites: () => ipcRenderer.invoke('contacts:get-favorites'),
+    getGroups: () => ipcRenderer.invoke('contacts:get-groups'),
+    createGroup: (groupData: { name: string; color: string }) => ipcRenderer.invoke('contacts:create-group', groupData),
+    addToGroup: (contactId: string, groupId: string) => ipcRenderer.invoke('contacts:add-to-group', contactId, groupId),
+    removeFromGroup: (contactId: string, groupId: string) => ipcRenderer.invoke('contacts:remove-from-group', contactId, groupId),
+    getGroupMembers: (groupId: string) => ipcRenderer.invoke('contacts:get-group-members', groupId),
+    exportCSV: () => ipcRenderer.invoke('contacts:export-csv'),
+    exportVCard: () => ipcRenderer.invoke('contacts:export-vcard'),
+    importCSV: () => ipcRenderer.invoke('contacts:import-csv'),
+    importVCard: () => ipcRenderer.invoke('contacts:import-vcard'),
+    exportSelected: (contactIds: string[], format: 'csv' | 'vcard') => ipcRenderer.invoke('contacts:export-selected', contactIds, format),
   },
 
   // System operations
