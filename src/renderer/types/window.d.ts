@@ -60,6 +60,18 @@ declare global {
         archiveThread: (threadId: string, archived?: boolean) => Promise<boolean>;
       };
 
+      // Call log operations
+      calls: {
+        sync: (deviceId: string, backupPath?: string) => Promise<any>;
+        getLogs: (limit?: number, offset?: number, filters?: any) => Promise<any[]>;
+        initiate: (phoneNumber: string, callType?: 'voice' | 'video' | 'facetime') => Promise<string>;
+        end: (callId: string) => Promise<void>;
+        getActive: () => Promise<any[]>;
+        addNotes: (callId: string, notes: string) => Promise<void>;
+        getStatistics: () => Promise<any>;
+        export: (format?: 'json' | 'csv' | 'txt') => Promise<any>;
+      };
+
       // System operations
       system: {
         minimize: () => void;

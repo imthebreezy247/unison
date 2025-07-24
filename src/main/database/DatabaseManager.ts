@@ -119,6 +119,53 @@ export interface MessageReaction {
   timestamp: string;
 }
 
+export interface CallLog {
+  id: string;
+  contact_id?: string;
+  phone_number: string;
+  contact_name?: string;
+  direction: 'incoming' | 'outgoing' | 'missed' | 'blocked' | 'voicemail';
+  call_type: 'voice' | 'video' | 'facetime' | 'conference';
+  duration: number;
+  start_time: string;
+  end_time?: string;
+  call_status: 'completed' | 'failed' | 'busy' | 'declined' | 'no_answer';
+  call_quality: 'excellent' | 'good' | 'fair' | 'poor';
+  device_used?: string;
+  call_notes?: string;
+  voicemail_path?: string;
+  voicemail_transcription?: string;
+  location_data?: any;
+  emergency_call: boolean;
+  spam_likely: boolean;
+  archived: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CallRecording {
+  id: string;
+  call_log_id: string;
+  file_path: string;
+  file_size?: number;
+  duration?: number;
+  audio_quality: 'high' | 'medium' | 'low';
+  transcription?: string;
+  created_at: string;
+}
+
+export interface CallParticipant {
+  id: string;
+  call_log_id: string;
+  contact_id?: string;
+  phone_number: string;
+  participant_name?: string;
+  joined_at?: string;
+  left_at?: string;
+  muted: boolean;
+  created_at: string;
+}
+
 export class DatabaseManager {
   private db: Database.Database | null = null;
   private dbPath: string;
@@ -193,7 +240,7 @@ export class DatabaseManager {
       )
     `);
 
-    -- Message threads table for conversation metadata
+    // Message threads table for conversation metadata
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS message_threads (
         id TEXT PRIMARY KEY,
@@ -215,7 +262,7 @@ export class DatabaseManager {
       )
     `);
 
-    -- Message attachments table for detailed attachment tracking
+    // Message attachments table for detailed attachment tracking
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS message_attachments (
         id TEXT PRIMARY KEY,
@@ -232,7 +279,7 @@ export class DatabaseManager {
       )
     `);
 
-    -- Message reactions/effects table
+    // Message reactions/effects table
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS message_reactions (
         id TEXT PRIMARY KEY,
@@ -250,10 +297,56 @@ export class DatabaseManager {
         id TEXT PRIMARY KEY,
         contact_id TEXT,
         phone_number TEXT NOT NULL,
-        direction TEXT CHECK(direction IN ('incoming', 'outgoing', 'missed')) NOT NULL,
+        contact_name TEXT, -- Cached for performance
+        direction TEXT CHECK(direction IN ('incoming', 'outgoing', 'missed', 'blocked', 'voicemail')) NOT NULL,
+        call_type TEXT CHECK(call_type IN ('voice', 'video', 'facetime', 'conference')) DEFAULT 'voice',
         duration INTEGER DEFAULT 0, -- in seconds
-        timestamp DATETIME NOT NULL,
+        start_time DATETIME NOT NULL,
+        end_time DATETIME,
+        call_status TEXT CHECK(call_status IN ('completed', 'failed', 'busy', 'declined', 'no_answer')) DEFAULT 'completed',
+        call_quality TEXT CHECK(call_quality IN ('excellent', 'good', 'fair', 'poor')) DEFAULT 'good',
+        device_used TEXT, -- iPhone, iPad, Mac, etc.
+        call_notes TEXT, -- User notes about the call
+        voicemail_path TEXT, -- Path to voicemail file if applicable
+        voicemail_transcription TEXT, -- AI transcription of voicemail
+        location_data TEXT, -- JSON location when call was made/received
+        emergency_call BOOLEAN DEFAULT FALSE,
+        spam_likely BOOLEAN DEFAULT FALSE,
+        archived BOOLEAN DEFAULT FALSE,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (contact_id) REFERENCES contacts (id)
+      )
+    `);
+
+    // Call recordings table for future recording feature
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS call_recordings (
+        id TEXT PRIMARY KEY,
+        call_log_id TEXT NOT NULL,
+        file_path TEXT NOT NULL,
+        file_size INTEGER,
+        duration INTEGER, -- in seconds
+        audio_quality TEXT CHECK(audio_quality IN ('high', 'medium', 'low')) DEFAULT 'medium',
+        transcription TEXT, -- AI transcription of call
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (call_log_id) REFERENCES call_logs (id) ON DELETE CASCADE
+      )
+    `);
+
+    // Call participants table for conference calls
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS call_participants (
+        id TEXT PRIMARY KEY,
+        call_log_id TEXT NOT NULL,
+        contact_id TEXT,
+        phone_number TEXT NOT NULL,
+        participant_name TEXT,
+        joined_at DATETIME,
+        left_at DATETIME,
+        muted BOOLEAN DEFAULT FALSE,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (call_log_id) REFERENCES call_logs (id) ON DELETE CASCADE,
         FOREIGN KEY (contact_id) REFERENCES contacts (id)
       )
     `);
@@ -331,7 +424,12 @@ export class DatabaseManager {
       CREATE INDEX IF NOT EXISTS idx_message_attachments_message_id ON message_attachments(message_id);
       CREATE INDEX IF NOT EXISTS idx_message_reactions_message_id ON message_reactions(message_id);
       CREATE INDEX IF NOT EXISTS idx_call_logs_contact_id ON call_logs(contact_id);
-      CREATE INDEX IF NOT EXISTS idx_call_logs_timestamp ON call_logs(timestamp);
+      CREATE INDEX IF NOT EXISTS idx_call_logs_start_time ON call_logs(start_time);
+      CREATE INDEX IF NOT EXISTS idx_call_logs_direction ON call_logs(direction);
+      CREATE INDEX IF NOT EXISTS idx_call_logs_phone_number ON call_logs(phone_number);
+      CREATE INDEX IF NOT EXISTS idx_call_logs_call_type ON call_logs(call_type);
+      CREATE INDEX IF NOT EXISTS idx_call_recordings_call_log_id ON call_recordings(call_log_id);
+      CREATE INDEX IF NOT EXISTS idx_call_participants_call_log_id ON call_participants(call_log_id);
       CREATE INDEX IF NOT EXISTS idx_file_transfers_status ON file_transfers(status);
       CREATE INDEX IF NOT EXISTS idx_contacts_display_name ON contacts(display_name);
       CREATE INDEX IF NOT EXISTS idx_contact_group_memberships_group_id ON contact_group_memberships(group_id);

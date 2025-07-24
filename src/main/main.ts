@@ -8,6 +8,7 @@ import { NotificationManager } from './services/NotificationManager';
 import { ContactSyncService } from './services/ContactSyncService';
 import { ContactImportExportService } from './services/ContactImportExportService';
 import { MessageSyncService } from './services/MessageSyncService';
+import { CallLogService } from './services/CallLogService';
 
 // Configure logging
 log.transports.file.level = 'info';
@@ -22,6 +23,7 @@ class UnisonXApp {
   private contactSyncService: ContactSyncService;
   private contactImportExportService: ContactImportExportService;
   private messageSyncService: MessageSyncService;
+  private callLogService: CallLogService;
 
   constructor() {
     this.databaseManager = new DatabaseManager();
@@ -30,6 +32,7 @@ class UnisonXApp {
     this.contactSyncService = new ContactSyncService(this.databaseManager);
     this.contactImportExportService = new ContactImportExportService(this.databaseManager);
     this.messageSyncService = new MessageSyncService(this.databaseManager);
+    this.callLogService = new CallLogService(this.databaseManager);
     
     this.initializeApp();
   }
@@ -527,6 +530,79 @@ class UnisonXApp {
         throw error;
       }
     });
+
+    // Call log operations
+    ipcMain.handle('calls:sync', async (event, deviceId: string, backupPath?: string) => {
+      try {
+        return await this.callLogService.syncCallLogsFromDevice(deviceId, backupPath);
+      } catch (error) {
+        log.error('Call log sync error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('calls:get-logs', async (event, limit: number = 50, offset: number = 0, filters?: any) => {
+      try {
+        return await this.callLogService.getCallLogs(limit, offset, filters);
+      } catch (error) {
+        log.error('Get call logs error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('calls:initiate', async (event, phoneNumber: string, callType: 'voice' | 'video' | 'facetime' = 'voice') => {
+      try {
+        return await this.callLogService.initiateCall(phoneNumber, callType);
+      } catch (error) {
+        log.error('Initiate call error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('calls:end', async (event, callId: string) => {
+      try {
+        return await this.callLogService.endCall(callId);
+      } catch (error) {
+        log.error('End call error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('calls:get-active', async () => {
+      try {
+        return this.callLogService.getActiveCalls();
+      } catch (error) {
+        log.error('Get active calls error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('calls:add-notes', async (event, callId: string, notes: string) => {
+      try {
+        return await this.callLogService.addCallNotes(callId, notes);
+      } catch (error) {
+        log.error('Add call notes error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('calls:get-statistics', async () => {
+      try {
+        return await this.callLogService.getCallStatistics();
+      } catch (error) {
+        log.error('Get call statistics error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('calls:export', async (event, format: 'json' | 'csv' | 'txt' = 'csv') => {
+      try {
+        return await this.callLogService.exportCallLogs(format);
+      } catch (error) {
+        log.error('Export call logs error:', error);
+        throw error;
+      }
+    });
   }
 
   private async initializeServices(): Promise<void> {
@@ -551,6 +627,10 @@ class UnisonXApp {
       await this.messageSyncService.initialize();
       log.info('Message sync service initialized successfully');
 
+      // Initialize call log service
+      await this.callLogService.initialize();
+      log.info('Call log service initialized successfully');
+
       // Start device scanning
       this.deviceManager.startScanning();
       log.info('Device scanning started');
@@ -565,6 +645,7 @@ class UnisonXApp {
       this.deviceManager.stopScanning();
       this.contactSyncService.cleanup();
       this.messageSyncService.cleanup();
+      this.callLogService.cleanup();
       this.databaseManager.close();
       log.info('UnisonX cleanup completed');
     } catch (error) {

@@ -60,6 +60,18 @@ interface UnisonXAPI {
     archiveThread: (threadId: string, archived?: boolean) => Promise<boolean>;
   };
 
+  // Call log operations
+  calls: {
+    sync: (deviceId: string, backupPath?: string) => Promise<any>;
+    getLogs: (limit?: number, offset?: number, filters?: any) => Promise<any[]>;
+    initiate: (phoneNumber: string, callType?: 'voice' | 'video' | 'facetime') => Promise<string>;
+    end: (callId: string) => Promise<void>;
+    getActive: () => Promise<any[]>;
+    addNotes: (callId: string, notes: string) => Promise<void>;
+    getStatistics: () => Promise<any>;
+    export: (format?: 'json' | 'csv' | 'txt') => Promise<any>;
+  };
+
   // System operations
   system: {
     minimize: () => void;
@@ -137,6 +149,18 @@ const api: UnisonXAPI = {
     getDetailedStats: () => ipcRenderer.invoke('messages:get-detailed-stats'),
     export: (threadId?: string, format?: 'json' | 'csv' | 'txt') => ipcRenderer.invoke('messages:export', threadId, format),
     archiveThread: (threadId: string, archived?: boolean) => ipcRenderer.invoke('messages:archive-thread', threadId, archived),
+  },
+
+  // Call log operations
+  calls: {
+    sync: (deviceId: string, backupPath?: string) => ipcRenderer.invoke('calls:sync', deviceId, backupPath),
+    getLogs: (limit?: number, offset?: number, filters?: any) => ipcRenderer.invoke('calls:get-logs', limit, offset, filters),
+    initiate: (phoneNumber: string, callType?: 'voice' | 'video' | 'facetime') => ipcRenderer.invoke('calls:initiate', phoneNumber, callType),
+    end: (callId: string) => ipcRenderer.invoke('calls:end', callId),
+    getActive: () => ipcRenderer.invoke('calls:get-active'),
+    addNotes: (callId: string, notes: string) => ipcRenderer.invoke('calls:add-notes', callId, notes),
+    getStatistics: () => ipcRenderer.invoke('calls:get-statistics'),
+    export: (format?: 'json' | 'csv' | 'txt') => ipcRenderer.invoke('calls:export', format),
   },
 
   // System operations
