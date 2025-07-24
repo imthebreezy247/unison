@@ -13,17 +13,10 @@ import {
   Video,
   VoicemailIcon,
   Clock,
-  User,
   BarChart3,
   FileText,
-  Calendar,
-  MapPin,
   MessageSquare,
-  Star,
-  AlertTriangle,
-  Play,
-  Pause,
-  Volume2
+  AlertTriangle
 } from 'lucide-react';
 import { useConnection } from '../context/ConnectionContext';
 
@@ -618,16 +611,16 @@ export const CallLogs: React.FC = () => {
                       
                       <div className="flex items-center space-x-1">
                         {call.emergency_call && (
-                          <AlertTriangle size={14} className="text-red-500" title="Emergency call" />
+                          <AlertTriangle size={14} className="text-red-500" />
                         )}
                         {call.spam_likely && (
-                          <AlertTriangle size={14} className="text-orange-500" title="Likely spam" />
+                          <AlertTriangle size={14} className="text-orange-500" />
                         )}
                         {call.voicemail_path && (
-                          <VoicemailIcon size={14} className="text-purple-500" title="Has voicemail" />
+                          <VoicemailIcon size={14} className="text-purple-500" />
                         )}
                         {call.call_notes && (
-                          <MessageSquare size={14} className="text-blue-500" title="Has notes" />
+                          <MessageSquare size={14} className="text-blue-500" />
                         )}
                       </div>
                     </div>

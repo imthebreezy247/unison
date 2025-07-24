@@ -15,27 +15,6 @@ export interface Contact {
   updated_at: string;
 }
 
-export interface Message {
-  id: string;
-  contact_id: string;
-  content: string;
-  message_type: 'sms' | 'imessage' | 'notification';
-  direction: 'incoming' | 'outgoing';
-  timestamp: string;
-  read_status: boolean;
-  attachments?: string[];
-  created_at: string;
-}
-
-export interface CallLog {
-  id: string;
-  contact_id: string;
-  phone_number: string;
-  direction: 'incoming' | 'outgoing' | 'missed';
-  duration: number;
-  timestamp: string;
-  created_at: string;
-}
 
 export interface FileTransfer {
   id: string;
@@ -527,9 +506,9 @@ export class DatabaseManager {
   }
 
   // Call log methods
-  async insertCallLog(callLog: Omit<CallLog, 'created_at'>): Promise<void> {
+  async insertCallLog(callLog: Omit<CallLog, 'created_at' | 'updated_at'>): Promise<void> {
     const sql = `
-      INSERT INTO call_logs (id, contact_id, phone_number, direction, duration, timestamp)
+      INSERT INTO call_logs (id, contact_id, phone_number, direction, duration, start_time)
       VALUES (?, ?, ?, ?, ?, ?)
     `;
     await this.run(sql, [
@@ -538,12 +517,12 @@ export class DatabaseManager {
       callLog.phone_number,
       callLog.direction,
       callLog.duration,
-      callLog.timestamp
+      callLog.start_time
     ]);
   }
 
   async getCallLogs(limit: number = 100): Promise<CallLog[]> {
-    return await this.query('SELECT * FROM call_logs ORDER BY timestamp DESC LIMIT ?', [limit]);
+    return await this.query('SELECT * FROM call_logs ORDER BY start_time DESC LIMIT ?', [limit]);
   }
 
   // File transfer methods
