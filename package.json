@@ -12,6 +12,10 @@
     "build:main": "tsc -p src/main/tsconfig.json",
     "dist": "npm run build && electron-builder",
     "dist:win": "npm run build && electron-builder --win",
+    "dist:portable": "npm run build && electron-builder --win portable",
+    "pack": "npm run build && electron-builder --dir",
+    "prepack": "npm run build",
+    "predist": "npm run build",
     "test": "jest",
     "lint": "eslint src --ext .ts,.tsx,.js,.jsx",
     "typecheck": "tsc --noEmit"
@@ -58,21 +62,78 @@
   "build": {
     "appId": "com.unisonx.app",
     "productName": "UnisonX",
+    "copyright": "Copyright © 2024 UnisonX Development Team",
+    "description": "Ultra-advanced iPhone-Windows integration application - 1000x better than Intel Unison",
     "directories": {
-      "output": "dist"
+      "output": "dist",
+      "buildResources": "assets"
     },
     "files": [
       "build/**/*",
       "src/main/build/**/*",
-      "node_modules/**/*"
+      "node_modules/**/*",
+      "!node_modules/**/*.{md,txt,map}",
+      "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}",
+      "!.editorconfig",
+      "!**/._*",
+      "!**/{.DS_Store,.git,.hg,.svn,CVS,RCS,SCCS,.gitignore,.gitattributes}",
+      "!**/{__pycache__,thumbs.db,.flowconfig,.idea,.vs,.nyc_output}",
+      "!**/{appveyor.yml,.travis.yml,circle.yml}",
+      "!**/{npm-debug.log,yarn.lock,.yarn-integrity,.yarn-metadata.json}"
+    ],
+    "extraResources": [
+      {
+        "from": "assets/",
+        "to": "assets/",
+        "filter": ["**/*"]
+      }
     ],
     "win": {
-      "target": "nsis",
-      "icon": "assets/icon.ico"
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "assets/icon.ico",
+      "requestedExecutionLevel": "requireAdministrator",
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
+      "publisherName": "UnisonX Development Team",
+      "verifyUpdateCodeSignature": false
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
-    }
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "UnisonX",
+      "include": "assets/installer.nsh",
+      "script": "assets/installer.nsh"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-portable.${ext}"
+    },
+    "fileAssociations": [
+      {
+        "ext": "unisonx",
+        "name": "UnisonX Backup File",
+        "description": "UnisonX backup and configuration file",
+        "icon": "assets/file-icon.ico"
+      }
+    ],
+    "protocols": [
+      {
+        "name": "UnisonX Protocol",
+        "schemes": ["unisonx"]
+      }
+    ]
   }
 }

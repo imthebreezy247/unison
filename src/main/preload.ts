@@ -193,6 +193,38 @@ const api: UnisonXAPI = {
     addToFolder: (transferId: string, folderId: string) => ipcRenderer.invoke('files:add-to-folder', transferId, folderId),
   },
 
+  // Settings and preferences operations
+  settings: {
+    get: (category: string, key: string, defaultValue?: any) => ipcRenderer.invoke('settings:get', category, key, defaultValue),
+    set: (category: string, key: string, value: any, settingType?: string) => ipcRenderer.invoke('settings:set', category, key, value, settingType),
+    getCategory: (category: string) => ipcRenderer.invoke('settings:get-category', category),
+    getAll: () => ipcRenderer.invoke('settings:get-all'),
+  },
+
+  preferences: {
+    get: (group: string, key: string, defaultValue?: any) => ipcRenderer.invoke('preferences:get', group, key, defaultValue),
+    set: (group: string, key: string, value: any, isSynced?: boolean) => ipcRenderer.invoke('preferences:set', group, key, value, isSynced),
+  },
+
+  themes: {
+    getAll: () => ipcRenderer.invoke('themes:get-all'),
+    getActive: () => ipcRenderer.invoke('themes:get-active'),
+    setActive: (themeId: string) => ipcRenderer.invoke('themes:set-active', themeId),
+    createCustom: (themeData: any) => ipcRenderer.invoke('themes:create-custom', themeData),
+  },
+
+  crm: {
+    getIntegrations: () => ipcRenderer.invoke('crm:get-integrations'),
+    createIntegration: (integrationData: any) => ipcRenderer.invoke('crm:create-integration', integrationData),
+    updateIntegration: (integrationId: string, updateData: any) => ipcRenderer.invoke('crm:update-integration', integrationId, updateData),
+  },
+
+  backup: {
+    create: (backupType: string, options?: any) => ipcRenderer.invoke('backup:create', backupType, options),
+    restore: (backupId: string) => ipcRenderer.invoke('backup:restore', backupId),
+    getAll: () => ipcRenderer.invoke('backup:get-all'),
+  },
+
   // System operations
   system: {
     minimize: () => ipcRenderer.invoke('system:minimize'),
