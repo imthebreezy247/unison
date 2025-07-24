@@ -13,7 +13,9 @@ interface UnisonXAPI {
     scan: () => Promise<any[]>;
     connect: (deviceId: string) => Promise<boolean>;
     disconnect: (deviceId: string) => Promise<boolean>;
+    pair: (deviceId: string) => Promise<boolean>;
     getStatus: (deviceId: string) => Promise<any>;
+    getFiles: (deviceId: string, path?: string) => Promise<any[]>;
   };
 
   // File operations
@@ -55,7 +57,9 @@ const api: UnisonXAPI = {
     scan: () => ipcRenderer.invoke('device:scan'),
     connect: (deviceId: string) => ipcRenderer.invoke('device:connect', deviceId),
     disconnect: (deviceId: string) => ipcRenderer.invoke('device:disconnect', deviceId),
+    pair: (deviceId: string) => ipcRenderer.invoke('device:pair', deviceId),
     getStatus: (deviceId: string) => ipcRenderer.invoke('device:status', deviceId),
+    getFiles: (deviceId: string, path?: string) => ipcRenderer.invoke('device:files', deviceId, path),
   },
 
   // File operations

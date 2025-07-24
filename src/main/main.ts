@@ -19,7 +19,7 @@ class UnisonXApp {
 
   constructor() {
     this.databaseManager = new DatabaseManager();
-    this.deviceManager = new DeviceManager();
+    this.deviceManager = new DeviceManager(this.databaseManager);
     this.notificationManager = new NotificationManager();
     
     this.initializeApp();
@@ -177,6 +177,33 @@ class UnisonXApp {
         return await this.deviceManager.disconnectDevice(deviceId);
       } catch (error) {
         log.error('Device disconnect error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('device:pair', async (event, deviceId: string) => {
+      try {
+        return await this.deviceManager.pairDevice(deviceId);
+      } catch (error) {
+        log.error('Device pair error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('device:status', async (event, deviceId: string) => {
+      try {
+        return this.deviceManager.getDevice(deviceId);
+      } catch (error) {
+        log.error('Device status error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('device:files', async (event, deviceId: string, path?: string) => {
+      try {
+        return await this.deviceManager.getDeviceFiles(deviceId, path);
+      } catch (error) {
+        log.error('Device files error:', error);
         throw error;
       }
     });

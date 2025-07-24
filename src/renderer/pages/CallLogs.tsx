@@ -1,5 +1,5 @@
 import React from 'react';
-import { Phone, Search, Filter } from 'lucide-react';
+import { Phone, Filter } from 'lucide-react';
 
 export const CallLogs: React.FC = () => {
   return (

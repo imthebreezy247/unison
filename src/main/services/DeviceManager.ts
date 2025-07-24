@@ -1,6 +1,10 @@
 import { EventEmitter } from 'events';
 import * as usb from 'usb';
+import * as path from 'path';
 import log from 'electron-log';
+import { iPhoneConnection, iPhoneDevice } from './iphone/iPhoneConnection';
+import { BackupParser } from './iphone/BackupParser';
+import { DatabaseManager } from '../database/DatabaseManager';
 
 export interface DeviceInfo {
   id: string;
@@ -12,23 +16,36 @@ export interface DeviceInfo {
   batteryLevel?: number;
   connectionType: 'usb' | 'wifi' | 'disconnected';
   lastSeen: string;
-  vendorId: number;
-  productId: number;
+  vendorId?: number;
+  productId?: number;
+  trusted?: boolean;
+  paired?: boolean;
+  serialNumber?: string;
 }
 
 export class DeviceManager extends EventEmitter {
   private devices: Map<string, DeviceInfo> = new Map();
   private scanInterval: NodeJS.Timeout | null = null;
   private connectedDevices: Set<string> = new Set();
+  private iPhoneConnection: iPhoneConnection;
+  private databaseManager: DatabaseManager;
 
-  constructor() {
+  constructor(databaseManager: DatabaseManager) {
     super();
+    this.databaseManager = databaseManager;
+    this.iPhoneConnection = new iPhoneConnection();
   }
 
   async initialize(): Promise<void> {
     log.info('Initializing DeviceManager');
     
-    // Set up USB device monitoring
+    // Initialize iPhone connection service
+    await this.iPhoneConnection.initialize();
+    
+    // Set up iPhone event listeners
+    this.setupiPhoneListeners();
+    
+    // Set up USB device monitoring as fallback
     usb.on('attach', (device) => {
       this.handleDeviceAttached(device);
     });
@@ -41,29 +58,84 @@ export class DeviceManager extends EventEmitter {
     await this.scanForDevices();
   }
 
+  private setupiPhoneListeners(): void {
+    this.iPhoneConnection.on('devices-changed', (devices: iPhoneDevice[]) => {
+      this.updateDevices(devices);
+    });
+
+    this.iPhoneConnection.on('device-connected', (device: iPhoneDevice) => {
+      this.handleiPhoneConnected(device);
+    });
+
+    this.iPhoneConnection.on('device-disconnected', (device: iPhoneDevice) => {
+      this.handleiPhoneDisconnected(device);
+    });
+
+    this.iPhoneConnection.on('trust-required', (device: iPhoneDevice) => {
+      this.emit('trust-required', this.convertToDeviceInfo(device));
+    });
+
+    this.iPhoneConnection.on('pairing-requested', (device: iPhoneDevice) => {
+      this.emit('pairing-requested', this.convertToDeviceInfo(device));
+    });
+
+    this.iPhoneConnection.on('device-paired', (device: iPhoneDevice) => {
+      this.emit('device-paired', this.convertToDeviceInfo(device));
+    });
+
+    this.iPhoneConnection.on('device-status-updated', (device: iPhoneDevice) => {
+      this.updateDevice(device);
+    });
+
+    this.iPhoneConnection.on('transfer-started', (data: any) => {
+      this.emit('transfer-started', data);
+    });
+
+    this.iPhoneConnection.on('transfer-progress', (data: any) => {
+      this.emit('transfer-progress', data);
+    });
+
+    this.iPhoneConnection.on('transfer-completed', (data: any) => {
+      this.emit('transfer-completed', data);
+    });
+
+    this.iPhoneConnection.on('transfer-failed', (data: any) => {
+      this.emit('transfer-failed', data);
+    });
+  }
+
   async scanForDevices(): Promise<DeviceInfo[]> {
     try {
       log.debug('Scanning for iOS devices');
       
-      const usbDevices = usb.getDeviceList();
-      const iosDevices: DeviceInfo[] = [];
+      // Use iPhone connection service for device detection
+      const iPhoneDevices = await this.iPhoneConnection.scanDevices();
+      const deviceInfos = iPhoneDevices.map(device => this.convertToDeviceInfo(device));
+      
+      // Update device map
+      this.devices.clear();
+      for (const device of deviceInfos) {
+        this.devices.set(device.id, device);
+      }
 
+      // Also check USB devices as fallback
+      const usbDevices = usb.getDeviceList();
       for (const device of usbDevices) {
         if (this.isIOSDevice(device)) {
-          const deviceInfo = await this.getDeviceInfo(device);
-          if (deviceInfo) {
-            this.devices.set(deviceInfo.id, deviceInfo);
-            iosDevices.push(deviceInfo);
-            log.info(`Found iOS device: ${deviceInfo.name} (${deviceInfo.id})`);
+          const deviceId = `${device.deviceDescriptor.idVendor}-${device.deviceDescriptor.idProduct}-${device.busNumber}-${device.deviceAddress}`;
+          // Only add if not already detected by iPhone connection
+          if (!this.devices.has(deviceId)) {
+            const deviceInfo = await this.getDeviceInfo(device);
+            if (deviceInfo) {
+              this.devices.set(deviceInfo.id, deviceInfo);
+              deviceInfos.push(deviceInfo);
+            }
           }
         }
       }
 
-      // Clean up disconnected devices
-      this.cleanupDisconnectedDevices(iosDevices.map(d => d.id));
-
-      this.emit('devices-updated', iosDevices);
-      return iosDevices;
+      this.emit('devices-updated', deviceInfos);
+      return deviceInfos;
     } catch (error) {
       log.error('Error scanning for devices:', error);
       return [];
@@ -101,9 +173,8 @@ export class DeviceManager extends EventEmitter {
 
       log.info(`Attempting to connect to device: ${deviceInfo.name}`);
 
-      // For now, simulate connection success
-      // In Phase 2, this will use libimobiledevice
-      const success = true;
+      // Use iPhone connection service
+      const success = await this.iPhoneConnection.connectDevice(deviceId);
 
       if (success) {
         deviceInfo.connected = true;
@@ -112,7 +183,9 @@ export class DeviceManager extends EventEmitter {
         this.connectedDevices.add(deviceId);
         
         this.devices.set(deviceId, deviceInfo);
-        this.emit('device-connected', deviceInfo);
+        
+        // Sync data if auto-sync is enabled
+        await this.performInitialSync(deviceId);
         
         log.info(`Successfully connected to device: ${deviceInfo.name}`);
         return true;
@@ -136,15 +209,22 @@ export class DeviceManager extends EventEmitter {
 
       log.info(`Disconnecting from device: ${deviceInfo.name}`);
 
-      deviceInfo.connected = false;
-      deviceInfo.connectionType = 'disconnected';
-      this.connectedDevices.delete(deviceId);
+      // Use iPhone connection service
+      const success = await this.iPhoneConnection.disconnectDevice(deviceId);
       
-      this.devices.set(deviceId, deviceInfo);
-      this.emit('device-disconnected', deviceInfo);
-      
-      log.info(`Disconnected from device: ${deviceInfo.name}`);
-      return true;
+      if (success) {
+        deviceInfo.connected = false;
+        deviceInfo.connectionType = 'disconnected';
+        this.connectedDevices.delete(deviceId);
+        
+        this.devices.set(deviceId, deviceInfo);
+        
+        log.info(`Disconnected from device: ${deviceInfo.name}`);
+        return true;
+      } else {
+        log.error(`Failed to disconnect from device: ${deviceInfo.name}`);
+        return false;
+      }
     } catch (error) {
       log.error('Error disconnecting from device:', error);
       return false;
@@ -155,13 +235,33 @@ export class DeviceManager extends EventEmitter {
     try {
       log.info(`Transferring file from ${source} to ${destination}`);
       
-      // Placeholder for file transfer implementation
-      // This will be implemented in Phase 6
+      // Get the active device
+      const activeDevice = Array.from(this.connectedDevices)[0];
+      if (!activeDevice) {
+        throw new Error('No connected device');
+      }
       
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate transfer
+      // Use iPhone connection for file transfer
+      const success = await this.iPhoneConnection.transferFile(activeDevice, source, destination);
       
-      log.info('File transfer completed successfully');
-      return true;
+      if (success) {
+        // Log file transfer to database
+        const fileTransfer = {
+          id: `ft_${Date.now()}`,
+          filename: path.basename(source),
+          source_path: source,
+          destination_path: destination,
+          file_size: 0, // Would get actual size
+          transfer_type: 'export' as const,
+          status: 'completed' as const,
+          progress: 100,
+        };
+        
+        await this.databaseManager.insertFileTransfer(fileTransfer);
+        log.info('File transfer completed successfully');
+      }
+      
+      return success;
     } catch (error) {
       log.error('File transfer failed:', error);
       return false;
@@ -333,5 +433,138 @@ export class DeviceManager extends EventEmitter {
         }
       }
     }
+  }
+
+  private convertToDeviceInfo(iDevice: iPhoneDevice): DeviceInfo {
+    return {
+      id: iDevice.udid,
+      name: iDevice.name,
+      type: iDevice.deviceClass === 'iPad' ? 'iPad' : 'iPhone',
+      model: iDevice.model,
+      osVersion: iDevice.osVersion,
+      connected: iDevice.paired && iDevice.trusted,
+      batteryLevel: iDevice.batteryLevel,
+      connectionType: iDevice.paired && iDevice.trusted ? 'usb' : 'disconnected',
+      lastSeen: new Date().toISOString(),
+      trusted: iDevice.trusted,
+      paired: iDevice.paired,
+      serialNumber: iDevice.serialNumber,
+    };
+  }
+
+  private updateDevices(iDevices: iPhoneDevice[]): void {
+    const deviceInfos = iDevices.map(device => this.convertToDeviceInfo(device));
+    
+    // Update device map
+    this.devices.clear();
+    for (const device of deviceInfos) {
+      this.devices.set(device.id, device);
+    }
+    
+    this.emit('devices-updated', deviceInfos);
+  }
+
+  private updateDevice(iDevice: iPhoneDevice): void {
+    const deviceInfo = this.convertToDeviceInfo(iDevice);
+    this.devices.set(deviceInfo.id, deviceInfo);
+    this.emit('device-status-updated', deviceInfo);
+  }
+
+  private handleiPhoneConnected(iDevice: iPhoneDevice): void {
+    const deviceInfo = this.convertToDeviceInfo(iDevice);
+    deviceInfo.connected = true;
+    deviceInfo.connectionType = 'usb';
+    this.devices.set(deviceInfo.id, deviceInfo);
+    this.connectedDevices.add(deviceInfo.id);
+    this.emit('device-connected', deviceInfo);
+  }
+
+  private handleiPhoneDisconnected(iDevice: iPhoneDevice): void {
+    const deviceInfo = this.convertToDeviceInfo(iDevice);
+    deviceInfo.connected = false;
+    deviceInfo.connectionType = 'disconnected';
+    this.devices.set(deviceInfo.id, deviceInfo);
+    this.connectedDevices.delete(deviceInfo.id);
+    this.emit('device-disconnected', deviceInfo);
+  }
+
+  private async performInitialSync(deviceId: string): Promise<void> {
+    try {
+      log.info(`Performing initial sync for device: ${deviceId}`);
+      
+      // Get backup path
+      const backupPath = await this.iPhoneConnection.getBackupPath(deviceId);
+      if (!backupPath) {
+        log.warn('No backup found for device, sync limited to live data');
+        return;
+      }
+
+      // Parse backup data
+      const parser = new BackupParser(backupPath);
+      const manifest = await parser.parseBackup();
+      
+      if (manifest) {
+        log.info(`Found backup for ${manifest.deviceName} from ${manifest.date}`);
+        
+        // Sync contacts
+        const contacts = await parser.extractContacts();
+        log.info(`Found ${contacts.length} contacts to sync`);
+        
+        for (const contact of contacts) {
+          await this.databaseManager.insertContact({
+            id: contact.id,
+            first_name: contact.firstName,
+            last_name: contact.lastName,
+            display_name: `${contact.firstName} ${contact.lastName}`.trim(),
+            phone_numbers: contact.phoneNumbers.map(p => p.number),
+            email_addresses: contact.emails.map(e => e.email),
+          });
+        }
+        
+        // Update sync status
+        await this.databaseManager.updateSyncStatus(
+          deviceId,
+          'contacts',
+          'success',
+          contacts.length
+        );
+        
+        // Emit sync progress
+        this.emit('sync-progress', {
+          deviceId,
+          type: 'contacts',
+          progress: 100,
+          itemsSynced: contacts.length,
+        });
+      }
+      
+      parser.cleanup();
+    } catch (error) {
+      log.error('Initial sync failed:', error);
+      this.emit('sync-error', { deviceId, error: error.message });
+    }
+  }
+
+  async pairDevice(deviceId: string): Promise<boolean> {
+    try {
+      return await this.iPhoneConnection.pairDevice(deviceId);
+    } catch (error) {
+      log.error('Failed to pair device:', error);
+      return false;
+    }
+  }
+
+  async getDeviceFiles(deviceId: string, path: string = '/'): Promise<any[]> {
+    try {
+      return await this.iPhoneConnection.listFiles(deviceId, path);
+    } catch (error) {
+      log.error('Failed to get device files:', error);
+      return [];
+    }
+  }
+
+  cleanup(): void {
+    this.stopScanning();
+    this.iPhoneConnection.cleanup();
   }
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings as SettingsIcon, Monitor, Moon, Sun } from 'lucide-react';
+import { Monitor, Moon, Sun } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 
 export const Settings: React.FC = () => {

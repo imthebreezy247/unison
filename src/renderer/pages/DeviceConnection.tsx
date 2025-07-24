@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Smartphone, 
   Wifi, 
@@ -7,12 +7,18 @@ import {
   CheckCircle, 
   XCircle,
   RefreshCw,
-  Settings
+  Settings,
+  Shield,
+  ShieldCheck,
+  Battery,
+  HardDrive,
+  FolderOpen
 } from 'lucide-react';
 import { useConnection } from '../context/ConnectionContext';
 
 export const DeviceConnection: React.FC = () => {
   const { state, scanForDevices, connectDevice, disconnectDevice } = useConnection();
+  const [expandedDevice, setExpandedDevice] = useState<string | null>(null);
 
   const handleConnect = async (deviceId: string) => {
     await connectDevice(deviceId);
@@ -20,6 +26,29 @@ export const DeviceConnection: React.FC = () => {
 
   const handleDisconnect = async (deviceId: string) => {
     await disconnectDevice(deviceId);
+  };
+
+  const handlePairDevice = async (deviceId: string) => {
+    try {
+      const success = await window.unisonx?.device?.pair(deviceId);
+      if (success) {
+        window.unisonx?.log?.info(`Device paired successfully: ${deviceId}`);
+        // Refresh device list
+        await scanForDevices();
+      }
+    } catch (error) {
+      window.unisonx?.log?.error('Failed to pair device', error);
+    }
+  };
+
+  const handleViewFiles = async (deviceId: string) => {
+    try {
+      const files = await window.unisonx?.device?.getFiles(deviceId);
+      console.log('Device files:', files);
+      // In a real implementation, would open file browser
+    } catch (error) {
+      window.unisonx?.log?.error('Failed to get device files', error);
+    }
   };
 
   const getConnectionIcon = (connectionType: string) => {
@@ -36,6 +65,13 @@ export const DeviceConnection: React.FC = () => {
   const getStatusColor = (connected: boolean) => {
     return connected ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
   };
+
+  const getTrustIcon = (trusted: boolean) => {
+    return trusted ? 
+      <ShieldCheck size={16} className="text-green-500" /> : 
+      <Shield size={16} className="text-yellow-500" />;
+  };
+
 
   return (
     <div className="device-connection p-6 space-y-6">
@@ -150,18 +186,30 @@ export const DeviceConnection: React.FC = () => {
                       <div className="text-sm text-gray-500">
                         {device.model} • iOS {device.osVersion}
                       </div>
-                      <div className="flex items-center space-x-2 mt-1">
-                        {getConnectionIcon(device.connectionType)}
-                        <span className="text-xs text-gray-500">
-                          {device.connectionType.toUpperCase()}
-                        </span>
-                        {device.batteryLevel && (
-                          <>
-                            <span className="text-xs text-gray-400">•</span>
+                      <div className="flex items-center space-x-3 mt-2">
+                        <div className="flex items-center space-x-1">
+                          {getConnectionIcon(device.connectionType)}
+                          <span className="text-xs text-gray-500">
+                            {device.connectionType.toUpperCase()}
+                          </span>
+                        </div>
+                        
+                        {device.trusted !== undefined && (
+                          <div className="flex items-center space-x-1">
+                            {getTrustIcon(device.trusted)}
                             <span className="text-xs text-gray-500">
-                              {device.batteryLevel}% battery
+                              {device.trusted ? 'Trusted' : 'Not Trusted'}
                             </span>
-                          </>
+                          </div>
+                        )}
+                        
+                        {device.batteryLevel && (
+                          <div className="flex items-center space-x-1">
+                            <Battery size={14} className="text-gray-500" />
+                            <span className="text-xs text-gray-500">
+                              {device.batteryLevel}%
+                            </span>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -179,25 +227,121 @@ export const DeviceConnection: React.FC = () => {
                       </span>
                     </div>
                     
-                    <button
-                      onClick={() => device.connected ? handleDisconnect(device.id) : handleConnect(device.id)}
-                      className={device.connected ? 'button-secondary' : 'button-primary'}
-                    >
-                      {device.connected ? 'Disconnect' : 'Connect'}
-                    </button>
+                    <div className="flex items-center space-x-2">
+                      {!device.trusted && !device.connected && (
+                        <button
+                          onClick={() => handlePairDevice(device.id)}
+                          className="px-3 py-1 text-sm bg-yellow-100 hover:bg-yellow-200 text-yellow-800 rounded-md"
+                        >
+                          Pair
+                        </button>
+                      )}
+                      
+                      {device.connected && (
+                        <button
+                          onClick={() => handleViewFiles(device.id)}
+                          className="px-3 py-1 text-sm button-secondary flex items-center space-x-1"
+                        >
+                          <FolderOpen size={14} />
+                          <span>Files</span>
+                        </button>
+                      )}
+                      
+                      <button
+                        onClick={() => device.connected ? handleDisconnect(device.id) : handleConnect(device.id)}
+                        className={device.connected ? 'button-secondary' : 'button-primary'}
+                        disabled={!device.trusted && !device.connected}
+                      >
+                        {device.connected ? 'Disconnect' : 'Connect'}
+                      </button>
+                    </div>
                   </div>
                 </div>
                 
-                {device.connected && device.id === state.activeDevice?.id && (
-                  <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
-                    <div className="text-sm text-gray-600 dark:text-gray-400">
-                      <div className="flex items-center justify-between">
-                        <span>Last seen: {new Date(device.lastSeen).toLocaleString()}</span>
-                        <span>Device ID: {device.id.substring(0, 8)}...</span>
+                
+                {/* Expandable device details */}
+                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
+                  <button
+                    onClick={() => setExpandedDevice(expandedDevice === device.id ? null : device.id)}
+                    className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400"
+                  >
+                    {expandedDevice === device.id ? 'Hide Details' : 'Show Details'}
+                  </button>
+                  
+                  {expandedDevice === device.id && (
+                    <div className="mt-4 space-y-4">
+                      {/* Device Information */}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <h4 className="font-medium text-gray-900 dark:text-gray-100">Device Info</h4>
+                          <div className="text-sm space-y-1">
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Serial Number:</span>
+                              <span>{device.serialNumber || 'Unknown'}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Device ID:</span>
+                              <span className="font-mono text-xs">{device.id.substring(0, 16)}...</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Last Seen:</span>
+                              <span>{new Date(device.lastSeen).toLocaleString()}</span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <h4 className="font-medium text-gray-900 dark:text-gray-100">Status</h4>
+                          <div className="text-sm space-y-1">
+                            <div className="flex justify-between items-center">
+                              <span className="text-gray-500">Trusted:</span>
+                              <span className={device.trusted ? 'text-green-600' : 'text-yellow-600'}>
+                                {device.trusted ? 'Yes' : 'No'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-gray-500">Paired:</span>
+                              <span className={device.paired ? 'text-green-600' : 'text-red-600'}>
+                                {device.paired ? 'Yes' : 'No'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Connection:</span>
+                              <span className="capitalize">{device.connectionType}</span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
+                      
+                      {/* Device Actions */}
+                      {device.connected && (
+                        <div className="space-y-2">
+                          <h4 className="font-medium text-gray-900 dark:text-gray-100">Actions</h4>
+                          <div className="flex flex-wrap gap-2">
+                            <button 
+                              onClick={() => handleViewFiles(device.id)}
+                              className="px-3 py-1 text-sm button-secondary flex items-center space-x-1"
+                            >
+                              <FolderOpen size={14} />
+                              <span>Browse Files</span>
+                            </button>
+                            
+                            <button 
+                              onClick={() => {
+                                // In a real implementation, would trigger backup
+                                window.unisonx?.log?.info('Starting device backup...');
+                              }}
+                              className="px-3 py-1 text-sm button-secondary flex items-center space-x-1"
+                            >
+                              <HardDrive size={14} />
+                              <span>Create Backup</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             ))}
           </div>

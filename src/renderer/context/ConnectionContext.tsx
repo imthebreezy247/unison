@@ -10,6 +10,9 @@ export interface Device {
   batteryLevel?: number;
   connectionType: 'usb' | 'wifi' | 'disconnected';
   lastSeen: string;
+  trusted?: boolean;
+  paired?: boolean;
+  serialNumber?: string;
 }
 
 export interface ConnectionState {

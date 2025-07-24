@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, Search, Plus } from 'lucide-react';
+import { Users, Plus } from 'lucide-react';
 
 export const Contacts: React.FC = () => {
   return (

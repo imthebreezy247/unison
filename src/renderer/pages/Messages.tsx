@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageSquare, Search, Plus } from 'lucide-react';
+import { MessageSquare, Plus } from 'lucide-react';
 
 export const Messages: React.FC = () => {
   return (
