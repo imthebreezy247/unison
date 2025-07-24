@@ -30,6 +30,7 @@ export const Contacts: React.FC = () => {
   const [contactGroupMemberships, setContactGroupMemberships] = useState<Map<string, string[]>>(new Map());
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showImportMenu, setShowImportMenu] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
   
   const [filters, setFilters] = useState<SearchFilters>({
     query: '',
@@ -482,6 +483,28 @@ export const Contacts: React.FC = () => {
     }
   };
 
+  const handleContactSelect = (contactId: string, selected: boolean) => {
+    const newSelection = new Set(selectedContacts);
+    if (selected) {
+      newSelection.add(contactId);
+    } else {
+      newSelection.delete(contactId);
+    }
+    setSelectedContacts(newSelection);
+  };
+
+  const toggleSelectionMode = () => {
+    setSelectionMode(!selectionMode);
+    if (selectionMode) {
+      setSelectedContacts(new Set()); // Clear selection when exiting selection mode
+    }
+  };
+
+  const selectAllContacts = () => {
+    const allContactIds = new Set(filteredContacts.map(contact => contact.id));
+    setSelectedContacts(allContactIds);
+  };
+
   if (loading) {
     return (
       <div className="contacts p-6 space-y-6">
@@ -605,6 +628,31 @@ export const Contacts: React.FC = () => {
             )}
           </div>
           
+          {/* Selection Mode Toggle */}
+          <button
+            onClick={toggleSelectionMode}
+            className={`button-secondary flex items-center space-x-2 ${
+              selectionMode ? 'bg-blue-100 text-blue-700 border-blue-300' : ''
+            }`}
+          >
+            <input
+              type="checkbox"
+              checked={selectionMode}
+              onChange={() => {}}
+              className="w-4 h-4 text-blue-600"
+            />
+            <span>Select</span>
+          </button>
+          
+          {selectionMode && selectedContacts.size === 0 && (
+            <button
+              onClick={selectAllContacts}
+              className="button-secondary text-sm"
+            >
+              Select All
+            </button>
+          )}
+          
           <button
             onClick={handleAddContact}
             className="button-primary flex items-center space-x-2"
@@ -670,7 +718,9 @@ export const Contacts: React.FC = () => {
               onToggleFavorite={handleToggleFavorite}
               onStartMessage={handleStartMessage}
               onCall={handleCall}
-              onView={handleViewContact}
+              onView={selectionMode ? undefined : handleViewContact}
+              onSelect={selectionMode ? handleContactSelect : undefined}
+              isSelected={selectedContacts.has(contact.id)}
               className={viewMode === 'list' ? 'max-w-none' : ''}
             />
           ))}
@@ -684,8 +734,17 @@ export const Contacts: React.FC = () => {
             <span className="text-sm text-gray-600 dark:text-gray-400">
               {selectedContacts.size} selected
             </span>
-            <button className="button-secondary text-sm">
-              Export Selected
+            <button
+              onClick={() => handleExportSelected('csv')}
+              className="button-secondary text-sm"
+            >
+              Export CSV
+            </button>
+            <button
+              onClick={() => handleExportSelected('vcard')}
+              className="button-secondary text-sm"
+            >
+              Export vCard
             </button>
             <button className="button-secondary text-sm text-red-600">
               Delete Selected

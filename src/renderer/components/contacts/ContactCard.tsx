@@ -31,6 +31,8 @@ interface ContactCardProps {
   onStartMessage: (contact: ContactInfo) => void;
   onCall: (phoneNumber: string) => void;
   onView?: (contact: ContactInfo) => void;
+  onSelect?: (contactId: string, selected: boolean) => void;
+  isSelected?: boolean;
   className?: string;
 }
 
@@ -42,6 +44,8 @@ export const ContactCard: React.FC<ContactCardProps> = ({
   onStartMessage,
   onCall,
   onView,
+  onSelect,
+  isSelected = false,
   className = '',
 }) => {
   const getInitials = (firstName: string, lastName: string) => {
@@ -59,7 +63,11 @@ export const ContactCard: React.FC<ContactCardProps> = ({
 
   return (
     <div 
-      className={`contact-card bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition-shadow cursor-pointer ${className}`}
+      className={`contact-card bg-white dark:bg-gray-800 rounded-lg border p-4 hover:shadow-md transition-all cursor-pointer ${
+        isSelected 
+          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' 
+          : 'border-gray-200 dark:border-gray-700'
+      } ${className}`}
       onClick={() => onView?.(contact)}
     >
       {/* Header */}
@@ -115,6 +123,17 @@ export const ContactCard: React.FC<ContactCardProps> = ({
         
         {/* Actions */}
         <div className="flex items-center space-x-1">
+          {onSelect && (
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={(e) => {
+                e.stopPropagation();
+                onSelect(contact.id, e.target.checked);
+              }}
+              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+            />
+          )}
           <button
             onClick={(e) => {
               e.stopPropagation();

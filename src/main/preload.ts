@@ -46,6 +46,17 @@ interface UnisonXAPI {
     exportSelected: (contactIds: string[], format: 'csv' | 'vcard') => Promise<any>;
   };
 
+  // Message operations
+  messages: {
+    sync: (deviceId: string, backupPath?: string) => Promise<any>;
+    getThreads: (limit?: number, offset?: number) => Promise<any[]>;
+    getThreadMessages: (threadId: string, limit?: number, offset?: number) => Promise<any[]>;
+    markAsRead: (threadId: string) => Promise<boolean>;
+    send: (threadId: string, content: string, messageType?: 'sms' | 'imessage') => Promise<string>;
+    search: (query: string, limit?: number) => Promise<any[]>;
+    getStats: () => Promise<any>;
+  };
+
   // System operations
   system: {
     minimize: () => void;
@@ -109,6 +120,17 @@ const api: UnisonXAPI = {
     importCSV: () => ipcRenderer.invoke('contacts:import-csv'),
     importVCard: () => ipcRenderer.invoke('contacts:import-vcard'),
     exportSelected: (contactIds: string[], format: 'csv' | 'vcard') => ipcRenderer.invoke('contacts:export-selected', contactIds, format),
+  },
+
+  // Message operations
+  messages: {
+    sync: (deviceId: string, backupPath?: string) => ipcRenderer.invoke('messages:sync', deviceId, backupPath),
+    getThreads: (limit?: number, offset?: number) => ipcRenderer.invoke('messages:get-threads', limit, offset),
+    getThreadMessages: (threadId: string, limit?: number, offset?: number) => ipcRenderer.invoke('messages:get-thread-messages', threadId, limit, offset),
+    markAsRead: (threadId: string) => ipcRenderer.invoke('messages:mark-as-read', threadId),
+    send: (threadId: string, content: string, messageType?: 'sms' | 'imessage') => ipcRenderer.invoke('messages:send', threadId, content, messageType),
+    search: (query: string, limit?: number) => ipcRenderer.invoke('messages:search', query, limit),
+    getStats: () => ipcRenderer.invoke('messages:get-stats'),
   },
 
   // System operations

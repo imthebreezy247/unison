@@ -46,6 +46,17 @@ declare global {
         exportSelected: (contactIds: string[], format: 'csv' | 'vcard') => Promise<any>;
       };
 
+      // Message operations
+      messages: {
+        sync: (deviceId: string, backupPath?: string) => Promise<any>;
+        getThreads: (limit?: number, offset?: number) => Promise<any[]>;
+        getThreadMessages: (threadId: string, limit?: number, offset?: number) => Promise<any[]>;
+        markAsRead: (threadId: string) => Promise<boolean>;
+        send: (threadId: string, content: string, messageType?: 'sms' | 'imessage') => Promise<string>;
+        search: (query: string, limit?: number) => Promise<any[]>;
+        getStats: () => Promise<any>;
+      };
+
       // System operations
       system: {
         minimize: () => void;

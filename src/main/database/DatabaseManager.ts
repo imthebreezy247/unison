@@ -60,6 +60,65 @@ export interface SyncStatus {
   records_synced: number;
 }
 
+export interface Message {
+  id: string;
+  thread_id: string;
+  contact_id?: string;
+  phone_number?: string;
+  content: string;
+  message_type: 'sms' | 'imessage' | 'rcs' | 'notification';
+  direction: 'incoming' | 'outgoing';
+  timestamp: string;
+  read_status: boolean;
+  delivered_status: boolean;
+  failed_status: boolean;
+  attachments?: MessageAttachment[];
+  reply_to_id?: string;
+  message_effects?: any;
+  group_info?: any;
+  archived: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MessageThread {
+  id: string;
+  contact_id?: string;
+  phone_number?: string;
+  last_message_id?: string;
+  last_message_timestamp?: string;
+  unread_count: number;
+  is_group: boolean;
+  group_name?: string;
+  group_participants?: string[];
+  archived: boolean;
+  pinned: boolean;
+  muted: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MessageAttachment {
+  id: string;
+  message_id: string;
+  file_path: string;
+  file_name?: string;
+  file_type?: string;
+  file_size?: number;
+  mime_type?: string;
+  thumbnail_path?: string;
+  download_status: 'pending' | 'downloading' | 'completed' | 'failed';
+  created_at: string;
+}
+
+export interface MessageReaction {
+  id: string;
+  message_id: string;
+  reaction_type: string;
+  sender_id?: string;
+  timestamp: string;
+}
+
 export class DatabaseManager {
   private db: Database.Database | null = null;
   private dbPath: string;
@@ -112,15 +171,76 @@ export class DatabaseManager {
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS messages (
         id TEXT PRIMARY KEY,
+        thread_id TEXT NOT NULL, -- Groups messages into conversations
         contact_id TEXT,
+        phone_number TEXT, -- For messages from unknown contacts
         content TEXT NOT NULL,
-        message_type TEXT CHECK(message_type IN ('sms', 'imessage', 'notification')) NOT NULL,
+        message_type TEXT CHECK(message_type IN ('sms', 'imessage', 'rcs', 'notification')) NOT NULL,
         direction TEXT CHECK(direction IN ('incoming', 'outgoing')) NOT NULL,
         timestamp DATETIME NOT NULL,
         read_status BOOLEAN DEFAULT FALSE,
-        attachments TEXT, -- JSON array
+        delivered_status BOOLEAN DEFAULT FALSE,
+        failed_status BOOLEAN DEFAULT FALSE,
+        attachments TEXT, -- JSON array of attachment objects
+        reply_to_id TEXT, -- For threaded replies
+        message_effects TEXT, -- JSON for iMessage effects, reactions
+        group_info TEXT, -- JSON for group message info
+        archived BOOLEAN DEFAULT FALSE,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (contact_id) REFERENCES contacts (id)
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (contact_id) REFERENCES contacts (id),
+        FOREIGN KEY (reply_to_id) REFERENCES messages (id)
+      )
+    `);
+
+    -- Message threads table for conversation metadata
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS message_threads (
+        id TEXT PRIMARY KEY,
+        contact_id TEXT,
+        phone_number TEXT,
+        last_message_id TEXT,
+        last_message_timestamp DATETIME,
+        unread_count INTEGER DEFAULT 0,
+        is_group BOOLEAN DEFAULT FALSE,
+        group_name TEXT,
+        group_participants TEXT, -- JSON array of participants
+        archived BOOLEAN DEFAULT FALSE,
+        pinned BOOLEAN DEFAULT FALSE,
+        muted BOOLEAN DEFAULT FALSE,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (contact_id) REFERENCES contacts (id),
+        FOREIGN KEY (last_message_id) REFERENCES messages (id)
+      )
+    `);
+
+    -- Message attachments table for detailed attachment tracking
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS message_attachments (
+        id TEXT PRIMARY KEY,
+        message_id TEXT NOT NULL,
+        file_path TEXT NOT NULL,
+        file_name TEXT,
+        file_type TEXT, -- image, video, audio, document, etc.
+        file_size INTEGER,
+        mime_type TEXT,
+        thumbnail_path TEXT,
+        download_status TEXT CHECK(download_status IN ('pending', 'downloading', 'completed', 'failed')) DEFAULT 'pending',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (message_id) REFERENCES messages (id) ON DELETE CASCADE
+      )
+    `);
+
+    -- Message reactions/effects table
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS message_reactions (
+        id TEXT PRIMARY KEY,
+        message_id TEXT NOT NULL,
+        reaction_type TEXT NOT NULL, -- heart, thumbs_up, laugh, etc.
+        sender_id TEXT, -- Who sent the reaction
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (message_id) REFERENCES messages (id) ON DELETE CASCADE
       )
     `);
 
@@ -202,7 +322,14 @@ export class DatabaseManager {
     // Create indexes for better performance
     this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_messages_contact_id ON messages(contact_id);
+      CREATE INDEX IF NOT EXISTS idx_messages_thread_id ON messages(thread_id);
       CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
+      CREATE INDEX IF NOT EXISTS idx_messages_read_status ON messages(read_status);
+      CREATE INDEX IF NOT EXISTS idx_message_threads_contact_id ON message_threads(contact_id);
+      CREATE INDEX IF NOT EXISTS idx_message_threads_last_timestamp ON message_threads(last_message_timestamp);
+      CREATE INDEX IF NOT EXISTS idx_message_threads_unread ON message_threads(unread_count);
+      CREATE INDEX IF NOT EXISTS idx_message_attachments_message_id ON message_attachments(message_id);
+      CREATE INDEX IF NOT EXISTS idx_message_reactions_message_id ON message_reactions(message_id);
       CREATE INDEX IF NOT EXISTS idx_call_logs_contact_id ON call_logs(contact_id);
       CREATE INDEX IF NOT EXISTS idx_call_logs_timestamp ON call_logs(timestamp);
       CREATE INDEX IF NOT EXISTS idx_file_transfers_status ON file_transfers(status);

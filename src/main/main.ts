@@ -7,6 +7,7 @@ import { DeviceManager } from './services/DeviceManager';
 import { NotificationManager } from './services/NotificationManager';
 import { ContactSyncService } from './services/ContactSyncService';
 import { ContactImportExportService } from './services/ContactImportExportService';
+import { MessageSyncService } from './services/MessageSyncService';
 
 // Configure logging
 log.transports.file.level = 'info';
@@ -20,6 +21,7 @@ class UnisonXApp {
   private notificationManager: NotificationManager;
   private contactSyncService: ContactSyncService;
   private contactImportExportService: ContactImportExportService;
+  private messageSyncService: MessageSyncService;
 
   constructor() {
     this.databaseManager = new DatabaseManager();
@@ -27,6 +29,7 @@ class UnisonXApp {
     this.notificationManager = new NotificationManager();
     this.contactSyncService = new ContactSyncService(this.databaseManager);
     this.contactImportExportService = new ContactImportExportService(this.databaseManager);
+    this.messageSyncService = new MessageSyncService(this.databaseManager);
     
     this.initializeApp();
   }
@@ -431,6 +434,71 @@ class UnisonXApp {
         throw error;
       }
     });
+
+    // Message operations
+    ipcMain.handle('messages:sync', async (event, deviceId: string, backupPath?: string) => {
+      try {
+        return await this.messageSyncService.syncMessagesFromDevice(deviceId, backupPath);
+      } catch (error) {
+        log.error('Message sync error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('messages:get-threads', async (event, limit: number = 50, offset: number = 0) => {
+      try {
+        return await this.messageSyncService.getMessageThreads(limit, offset);
+      } catch (error) {
+        log.error('Get message threads error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('messages:get-thread-messages', async (event, threadId: string, limit: number = 100, offset: number = 0) => {
+      try {
+        return await this.messageSyncService.getThreadMessages(threadId, limit, offset);
+      } catch (error) {
+        log.error('Get thread messages error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('messages:mark-as-read', async (event, threadId: string) => {
+      try {
+        await this.messageSyncService.markMessagesAsRead(threadId);
+        return true;
+      } catch (error) {
+        log.error('Mark messages as read error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('messages:send', async (event, threadId: string, content: string, messageType: 'sms' | 'imessage' = 'sms') => {
+      try {
+        return await this.messageSyncService.sendMessage(threadId, content, messageType);
+      } catch (error) {
+        log.error('Send message error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('messages:search', async (event, query: string, limit: number = 50) => {
+      try {
+        return await this.messageSyncService.searchMessages(query, limit);
+      } catch (error) {
+        log.error('Search messages error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('messages:get-stats', async () => {
+      try {
+        return await this.messageSyncService.getMessageStats();
+      } catch (error) {
+        log.error('Get message stats error:', error);
+        throw error;
+      }
+    });
   }
 
   private async initializeServices(): Promise<void> {
@@ -451,6 +519,10 @@ class UnisonXApp {
       await this.contactSyncService.initialize();
       log.info('Contact sync service initialized successfully');
 
+      // Initialize message sync service
+      await this.messageSyncService.initialize();
+      log.info('Message sync service initialized successfully');
+
       // Start device scanning
       this.deviceManager.startScanning();
       log.info('Device scanning started');
@@ -464,6 +536,7 @@ class UnisonXApp {
     try {
       this.deviceManager.stopScanning();
       this.contactSyncService.cleanup();
+      this.messageSyncService.cleanup();
       this.databaseManager.close();
       log.info('UnisonX cleanup completed');
     } catch (error) {
