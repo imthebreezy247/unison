@@ -55,6 +55,9 @@ interface UnisonXAPI {
     send: (threadId: string, content: string, messageType?: 'sms' | 'imessage') => Promise<string>;
     search: (query: string, limit?: number) => Promise<any[]>;
     getStats: () => Promise<any>;
+    getDetailedStats: () => Promise<any>;
+    export: (threadId?: string, format?: 'json' | 'csv' | 'txt') => Promise<any>;
+    archiveThread: (threadId: string, archived?: boolean) => Promise<boolean>;
   };
 
   // System operations
@@ -131,6 +134,9 @@ const api: UnisonXAPI = {
     send: (threadId: string, content: string, messageType?: 'sms' | 'imessage') => ipcRenderer.invoke('messages:send', threadId, content, messageType),
     search: (query: string, limit?: number) => ipcRenderer.invoke('messages:search', query, limit),
     getStats: () => ipcRenderer.invoke('messages:get-stats'),
+    getDetailedStats: () => ipcRenderer.invoke('messages:get-detailed-stats'),
+    export: (threadId?: string, format?: 'json' | 'csv' | 'txt') => ipcRenderer.invoke('messages:export', threadId, format),
+    archiveThread: (threadId: string, archived?: boolean) => ipcRenderer.invoke('messages:archive-thread', threadId, archived),
   },
 
   // System operations

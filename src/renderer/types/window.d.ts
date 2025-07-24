@@ -55,6 +55,9 @@ declare global {
         send: (threadId: string, content: string, messageType?: 'sms' | 'imessage') => Promise<string>;
         search: (query: string, limit?: number) => Promise<any[]>;
         getStats: () => Promise<any>;
+        getDetailedStats: () => Promise<any>;
+        export: (threadId?: string, format?: 'json' | 'csv' | 'txt') => Promise<any>;
+        archiveThread: (threadId: string, archived?: boolean) => Promise<boolean>;
       };
 
       // System operations

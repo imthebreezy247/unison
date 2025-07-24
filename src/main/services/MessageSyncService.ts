@@ -1,6 +1,7 @@
 import log from 'electron-log';
 import * as path from 'path';
 import * as fs from 'fs';
+import { app, dialog } from 'electron';
 import { DatabaseManager, Message, MessageThread, MessageAttachment } from '../database/DatabaseManager';
 
 export interface MessageSyncResult {
@@ -471,6 +472,173 @@ export class MessageSyncService {
   private async countThreads(): Promise<number> {
     const result = await this.databaseManager.query('SELECT COUNT(*) as count FROM message_threads');
     return result[0]?.count || 0;
+  }
+
+  /**
+   * Export messages to various formats
+   */
+  async exportMessages(threadId?: string, format: 'json' | 'csv' | 'txt' = 'json'): Promise<any> {
+    try {
+      let query = `
+        SELECT 
+          m.*,
+          c.display_name as contact_name,
+          mt.group_name,
+          mt.is_group
+        FROM messages m
+        LEFT JOIN message_threads mt ON m.thread_id = mt.id
+        LEFT JOIN contacts c ON mt.contact_id = c.id
+      `;
+      
+      const params: any[] = [];
+      if (threadId) {
+        query += ' WHERE m.thread_id = ?';
+        params.push(threadId);
+      }
+      
+      query += ' ORDER BY m.timestamp ASC';
+      
+      const messages = await this.databaseManager.query(query, params);
+      
+      const { filePath } = await dialog.showSaveDialog({
+        title: `Export Messages as ${format.toUpperCase()}`,
+        defaultPath: path.join(
+          app.getPath('downloads'), 
+          `messages_${threadId || 'all'}_${new Date().toISOString().split('T')[0]}.${format}`
+        ),
+        filters: [
+          { name: `${format.toUpperCase()} Files`, extensions: [format] },
+          { name: 'All Files', extensions: ['*'] }
+        ]
+      });
+
+      if (!filePath) {
+        return { success: false, error: 'Export cancelled' };
+      }
+
+      let content = '';
+      
+      switch (format) {
+        case 'json':
+          content = JSON.stringify(messages, null, 2);
+          break;
+          
+        case 'csv':
+          const headers = ['Timestamp', 'Contact', 'Direction', 'Type', 'Content'];
+          const csvRows = [headers.join(',')];
+          
+          messages.forEach((msg: any) => {
+            const row = [
+              msg.timestamp,
+              msg.contact_name || msg.phone_number || 'Unknown',
+              msg.direction,
+              msg.message_type,
+              `"${(msg.content || '').replace(/"/g, '""')}"`
+            ];
+            csvRows.push(row.join(','));
+          });
+          
+          content = csvRows.join('\n');
+          break;
+          
+        case 'txt':
+          messages.forEach((msg: any) => {
+            const timestamp = new Date(msg.timestamp).toLocaleString();
+            const sender = msg.direction === 'outgoing' ? 'You' : (msg.contact_name || msg.phone_number || 'Unknown');
+            content += `[${timestamp}] ${sender}: ${msg.content}\n`;
+          });
+          break;
+      }
+
+      await fs.promises.writeFile(filePath, content, 'utf8');
+      
+      log.info(`Exported ${messages.length} messages to ${filePath}`);
+      return {
+        success: true,
+        exported: messages.length,
+        filePath
+      };
+      
+    } catch (error) {
+      log.error('Message export error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
+  /**
+   * Archive/unarchive thread
+   */
+  async archiveThread(threadId: string, archived: boolean = true): Promise<void> {
+    await this.databaseManager.run(`
+      UPDATE message_threads 
+      SET archived = ? 
+      WHERE id = ?
+    `, [archived, threadId]);
+
+    await this.databaseManager.run(`
+      UPDATE messages 
+      SET archived = ? 
+      WHERE thread_id = ?
+    `, [archived, threadId]);
+
+    log.info(`Thread ${threadId} ${archived ? 'archived' : 'unarchived'}`);
+  }
+
+  /**
+   * Get message statistics with analytics
+   */
+  async getDetailedStats(): Promise<any> {
+    const basicStats = await this.getMessageStats();
+    
+    // Get daily message counts for the last 30 days
+    const dailyStats = await this.databaseManager.query(`
+      SELECT 
+        DATE(timestamp) as date,
+        COUNT(*) as count,
+        COUNT(CASE WHEN direction = 'incoming' THEN 1 END) as incoming,
+        COUNT(CASE WHEN direction = 'outgoing' THEN 1 END) as outgoing
+      FROM messages 
+      WHERE timestamp >= datetime('now', '-30 days')
+      GROUP BY DATE(timestamp)
+      ORDER BY date DESC
+    `);
+
+    // Get top contacts by message count
+    const topContacts = await this.databaseManager.query(`
+      SELECT 
+        c.display_name as contact_name,
+        mt.phone_number,
+        COUNT(m.id) as message_count,
+        MAX(m.timestamp) as last_message
+      FROM message_threads mt
+      LEFT JOIN contacts c ON mt.contact_id = c.id
+      LEFT JOIN messages m ON mt.id = m.thread_id
+      WHERE mt.is_group = FALSE
+      GROUP BY mt.id
+      ORDER BY message_count DESC
+      LIMIT 10
+    `);
+
+    // Get message type distribution
+    const typeStats = await this.databaseManager.query(`
+      SELECT 
+        message_type,
+        COUNT(*) as count,
+        COUNT(*) * 100.0 / (SELECT COUNT(*) FROM messages) as percentage
+      FROM messages
+      GROUP BY message_type
+    `);
+
+    return {
+      ...basicStats,
+      dailyStats,
+      topContacts,
+      typeStats,
+      generatedAt: new Date().toISOString()
+    };
   }
 
   cleanup(): void {

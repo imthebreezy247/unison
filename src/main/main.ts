@@ -499,6 +499,34 @@ class UnisonXApp {
         throw error;
       }
     });
+
+    ipcMain.handle('messages:get-detailed-stats', async () => {
+      try {
+        return await this.messageSyncService.getDetailedStats();
+      } catch (error) {
+        log.error('Get detailed message stats error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('messages:export', async (event, threadId?: string, format: 'json' | 'csv' | 'txt' = 'json') => {
+      try {
+        return await this.messageSyncService.exportMessages(threadId, format);
+      } catch (error) {
+        log.error('Export messages error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('messages:archive-thread', async (event, threadId: string, archived: boolean = true) => {
+      try {
+        await this.messageSyncService.archiveThread(threadId, archived);
+        return true;
+      } catch (error) {
+        log.error('Archive thread error:', error);
+        throw error;
+      }
+    });
   }
 
   private async initializeServices(): Promise<void> {

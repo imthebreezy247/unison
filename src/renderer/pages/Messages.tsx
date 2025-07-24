@@ -10,7 +10,10 @@ import {
   MoreVertical,
   Send,
   Paperclip,
-  Smile
+  Smile,
+  Download,
+  FileText,
+  BarChart3
 } from 'lucide-react';
 import { useConnection } from '../context/ConnectionContext';
 
@@ -58,6 +61,10 @@ export const Messages: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
+  const [searchResults, setSearchResults] = useState<Message[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   useEffect(() => {
     loadThreads();
@@ -68,6 +75,15 @@ export const Messages: React.FC = () => {
       loadThreadMessages(selectedThread.id);
     }
   }, [selectedThread]);
+
+  useEffect(() => {
+    if (searchQuery.trim()) {
+      handleSearch();
+    } else {
+      setShowSearchResults(false);
+      setSearchResults([]);
+    }
+  }, [searchQuery]);
 
   const loadThreads = async () => {
     try {
@@ -157,6 +173,69 @@ export const Messages: React.FC = () => {
     }
   };
 
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) {
+      setShowSearchResults(false);
+      setSearchResults([]);
+      return;
+    }
+
+    try {
+      setIsSearching(true);
+      const results = await window.unisonx?.messages?.search(searchQuery.trim(), 50) || [];
+      setSearchResults(results);
+      setShowSearchResults(true);
+      window.unisonx?.log?.info(`Search completed: ${results.length} results for "${searchQuery}"`);
+    } catch (error) {
+      console.error('Failed to search messages:', error);
+      window.unisonx?.log?.error('Failed to search messages', error);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleSearchResultClick = (message: Message) => {
+    // Find and select the thread containing this message
+    const thread = threads.find(t => t.id === message.thread_id);
+    if (thread) {
+      setSelectedThread(thread);
+      setShowSearchResults(false);
+      setSearchQuery('');
+    }
+  };
+
+  const handleExportMessages = async (format: 'json' | 'csv' | 'txt') => {
+    try {
+      setShowExportMenu(false);
+      const threadId = selectedThread?.id;
+      const result = await window.unisonx?.messages?.export(threadId, format);
+      
+      if (result?.success) {
+        alert(`Successfully exported ${result.exported} messages to ${format.toUpperCase()}!`);
+        window.unisonx?.log?.info(`Messages exported: ${result.exported} to ${result.filePath}`);
+      } else {
+        alert(`Export failed: ${result?.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Failed to export messages:', error);
+      alert('Failed to export messages');
+    }
+  };
+
+  const handleArchiveThread = async () => {
+    if (!selectedThread) return;
+    
+    try {
+      await window.unisonx?.messages?.archiveThread(selectedThread.id, true);
+      alert('Conversation archived successfully!');
+      await loadThreads();
+      setSelectedThread(null);
+    } catch (error) {
+      console.error('Failed to archive thread:', error);
+      alert('Failed to archive conversation');
+    }
+  };
+
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);
     const now = new Date();
@@ -240,17 +319,66 @@ export const Messages: React.FC = () => {
             <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder="Search conversations..."
+              placeholder="Search messages..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
+            {isSearching && (
+              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                <div className="loading-spinner w-4 h-4"></div>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Thread List */}
+        {/* Thread List or Search Results */}
         <div className="flex-1 overflow-y-auto">
-          {threads.length === 0 ? (
+          {showSearchResults ? (
+            /* Search Results */
+            <div className="p-4">
+              <div className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                {searchResults.length} results for "{searchQuery}"
+              </div>
+              {searchResults.length === 0 ? (
+                <div className="text-center py-8">
+                  <Search size={32} className="mx-auto text-gray-400 mb-2" />
+                  <div className="text-gray-600 dark:text-gray-400">
+                    No messages found
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {searchResults.map((message) => (
+                    <div
+                      key={message.id}
+                      onClick={() => handleSearchResultClick(message)}
+                      className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center space-x-2 mb-1">
+                            <span className="font-medium text-gray-900 dark:text-gray-100 text-sm">
+                              {message.contact_name || message.phone_number || 'Unknown'}
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              {formatTime(message.timestamp)}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 truncate">
+                            {message.content}
+                          </p>
+                        </div>
+                        <span className={`text-xs font-medium ml-2 ${getMessageTypeColor(message.message_type)}`}>
+                          {message.message_type.toUpperCase()}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : threads.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full p-8 text-center">
               <MessageSquare size={48} className="text-gray-400 mb-4" />
               <div className="text-gray-600 dark:text-gray-400 mb-2">
@@ -364,6 +492,54 @@ export const Messages: React.FC = () => {
                   <button className="p-2 text-gray-500 hover:text-blue-600 transition-colors">
                     <Phone size={18} />
                   </button>
+                  
+                  {/* Export Menu */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowExportMenu(!showExportMenu)}
+                      className="p-2 text-gray-500 hover:text-blue-600 transition-colors"
+                      title="Export conversation"
+                    >
+                      <Download size={18} />
+                    </button>
+                    
+                    {showExportMenu && (
+                      <div className="absolute right-0 mt-2 w-40 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 z-10">
+                        <div className="py-1">
+                          <button
+                            onClick={() => handleExportMessages('txt')}
+                            className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                          >
+                            <FileText size={16} />
+                            <span>Export as TXT</span>
+                          </button>
+                          <button
+                            onClick={() => handleExportMessages('csv')}
+                            className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                          >
+                            <BarChart3 size={16} />
+                            <span>Export as CSV</span>
+                          </button>
+                          <button
+                            onClick={() => handleExportMessages('json')}
+                            className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                          >
+                            <FileText size={16} />
+                            <span>Export as JSON</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <button
+                    onClick={handleArchiveThread}
+                    className="p-2 text-gray-500 hover:text-orange-600 transition-colors"
+                    title="Archive conversation"
+                  >
+                    <Archive size={18} />
+                  </button>
+                  
                   <button className="p-2 text-gray-500 hover:text-blue-600 transition-colors">
                     <MoreVertical size={18} />
                   </button>
