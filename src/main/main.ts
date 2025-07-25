@@ -830,7 +830,11 @@ class UnisonXApp {
 
     ipcMain.handle('backup:create', async (event, backupType: string, options?: any) => {
       try {
-        return await this.settingsService.createBackup(backupType, options);
+        const validBackupTypes = ['full', 'settings', 'data', 'incremental'] as const;
+        if (!validBackupTypes.includes(backupType as any)) {
+          throw new Error(`Invalid backup type: ${backupType}`);
+        }
+        return await this.settingsService.createBackup(backupType as 'full' | 'settings' | 'data' | 'incremental', options);
       } catch (error) {
         log.error('Create backup error:', error);
         throw error;

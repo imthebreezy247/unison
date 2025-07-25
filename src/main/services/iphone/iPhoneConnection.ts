@@ -319,7 +319,7 @@ export class iPhoneConnection extends EventEmitter {
       return true;
     } catch (error) {
       log.error('Failed to transfer file:', error);
-      this.emit('transfer-failed', { udid, error: error.message });
+      this.emit('transfer-failed', { udid, error: error instanceof Error ? error.message : 'Unknown error' });
       return false;
     }
   }

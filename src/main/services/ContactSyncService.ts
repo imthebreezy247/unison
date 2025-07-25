@@ -183,7 +183,7 @@ export class ContactSyncService extends EventEmitter {
           await this.processDeviceContact(deviceContact, existingContactMap, result);
         } catch (error) {
           log.error(`Failed to process contact ${deviceContact.firstName} ${deviceContact.lastName}:`, error);
-          result.errors.push(`Failed to process ${deviceContact.firstName} ${deviceContact.lastName}: ${error.message}`);
+          result.errors.push(`Failed to process ${deviceContact.firstName} ${deviceContact.lastName}: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
       }
 
@@ -207,7 +207,7 @@ export class ContactSyncService extends EventEmitter {
 
     } catch (error) {
       log.error('Contact sync failed:', error);
-      this.emit('sync-failed', { deviceId, error: error.message });
+      this.emit('sync-failed', { deviceId, error: error instanceof Error ? error.message : 'Unknown error' });
       throw error;
     } finally {
       this.activeSyncs.delete(deviceId);
@@ -247,7 +247,7 @@ export class ContactSyncService extends EventEmitter {
       display_name: `${deviceContact.firstName} ${deviceContact.lastName}`.trim() || 'Unknown',
       phone_numbers: deviceContact.phoneNumbers.map(p => p.number),
       email_addresses: deviceContact.emails.map(e => e.email),
-      avatar_url: null, // Will be handled separately
+      avatar_url: undefined, // Will be handled separately
     };
 
     await this.databaseManager.insertContact(contact);

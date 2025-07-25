@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import * as sqlite3 from 'better-sqlite3';
+import Database from 'better-sqlite3';
 import * as crypto from 'crypto';
 import log from 'electron-log';
 
@@ -46,7 +46,7 @@ export interface CallLogData {
 
 export class BackupParser {
   private backupPath: string;
-  private manifestDb: sqlite3.Database | null = null;
+  private manifestDb: Database | null = null;
 
   constructor(backupPath: string) {
     this.backupPath = backupPath;
@@ -61,7 +61,7 @@ export class BackupParser {
         return null;
       }
 
-      this.manifestDb = new sqlite3(manifestPath, { readonly: true });
+      this.manifestDb = new Database(manifestPath, { readonly: true });
 
       // Get backup info
       const info = this.manifestDb.prepare(
@@ -94,7 +94,7 @@ export class BackupParser {
         return [];
       }
 
-      const db = new sqlite3(contactsDbPath, { readonly: true });
+      const db = new Database(contactsDbPath, { readonly: true });
       const contacts: ContactData[] = [];
 
       try {
@@ -165,7 +165,7 @@ export class BackupParser {
         return [];
       }
 
-      const db = new sqlite3(smsDbPath, { readonly: true });
+      const db = new Database(smsDbPath, { readonly: true });
       const messages: MessageData[] = [];
 
       try {
@@ -231,7 +231,7 @@ export class BackupParser {
         return [];
       }
 
-      const db = new sqlite3(callDbPath, { readonly: true });
+      const db = new Database(callDbPath, { readonly: true });
       const calls: CallLogData[] = [];
 
       try {
@@ -285,7 +285,7 @@ export class BackupParser {
     try {
       if (!this.manifestDb) {
         const manifestPath = path.join(this.backupPath, 'Manifest.db');
-        this.manifestDb = new sqlite3(manifestPath, { readonly: true });
+        this.manifestDb = new Database(manifestPath, { readonly: true });
       }
 
       // Query for file in manifest

@@ -507,7 +507,7 @@ export class SettingsService {
       log.error('Failed to create backup:', error);
       return {
         success: false,
-        error: error.message
+        error: error instanceof Error ? error.message : 'Unknown error'
       };
     }
   }
@@ -577,7 +577,7 @@ export class SettingsService {
       return {
         success: false,
         restoredItems: 0,
-        error: error.message
+        error: error instanceof Error ? error.message : 'Unknown error'
       };
     }
   }

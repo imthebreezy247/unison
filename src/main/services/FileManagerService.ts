@@ -285,7 +285,7 @@ export class FileManagerService {
       log.info(`Transfer completed: ${transfer.filename}`);
     } catch (error) {
       log.error(`Transfer failed: ${transfer.filename}`, error);
-      await this.updateTransferStatus(transfer.id, 'failed', error.message);
+      await this.updateTransferStatus(transfer.id, 'failed', error instanceof Error ? error.message : 'Unknown error');
     } finally {
       this.activeTransfers.delete(transfer.id);
       
@@ -519,7 +519,7 @@ export class FileManagerService {
       return { success: true, filePath, exported: transfers.length };
     } catch (error) {
       log.error('Export transfers failed:', error);
-      return { success: false, error: error.message };
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
 

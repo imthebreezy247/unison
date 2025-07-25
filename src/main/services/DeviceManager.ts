@@ -46,13 +46,17 @@ export class DeviceManager extends EventEmitter {
     this.setupiPhoneListeners();
     
     // Set up USB device monitoring as fallback
-    usb.on('attach', (device) => {
-      this.handleDeviceAttached(device);
-    });
+    try {
+      (usb as any).on('attach', (device: any) => {
+        this.handleDeviceAttached(device);
+      });
 
-    usb.on('detach', (device) => {
-      this.handleDeviceDetached(device);
-    });
+      (usb as any).on('detach', (device: any) => {
+        this.handleDeviceDetached(device);
+      });
+    } catch (error) {
+      log.warn('USB monitoring not available:', error);
+    }
 
     // Initial scan
     await this.scanForDevices();
@@ -253,8 +257,14 @@ export class DeviceManager extends EventEmitter {
           destination_path: destination,
           file_size: 0, // Would get actual size
           transfer_type: 'export' as const,
+          transfer_method: 'usb' as const,
           status: 'completed' as const,
           progress: 100,
+          transfer_speed: 0,
+          bytes_transferred: 0,
+          favorite: false,
+          auto_delete_source: false,
+          updated_at: new Date().toISOString(),
         };
         
         await this.databaseManager.insertFileTransfer(fileTransfer);
@@ -541,7 +551,7 @@ export class DeviceManager extends EventEmitter {
       parser.cleanup();
     } catch (error) {
       log.error('Initial sync failed:', error);
-      this.emit('sync-error', { deviceId, error: error.message });
+      this.emit('sync-error', { deviceId, error: error instanceof Error ? error.message : 'Unknown error' });
     }
   }
 

@@ -87,6 +87,44 @@ interface UnisonXAPI {
     addToFolder: (transferId: string, folderId: string) => Promise<void>;
   };
 
+  // Settings operations
+  settings: {
+    get: (category: string, key: string, defaultValue?: any) => Promise<any>;
+    set: (category: string, key: string, value: any, settingType?: string) => Promise<void>;
+    getCategory: (category: string) => Promise<any>;
+    getAll: () => Promise<any>;
+  };
+
+  // Preferences operations
+  preferences: {
+    get: (group: string, key: string, defaultValue?: any) => Promise<any>;
+    set: (group: string, key: string, value: any, preferenceType?: string) => Promise<void>;
+    getGroup: (group: string) => Promise<any>;
+    getAll: () => Promise<any>;
+  };
+
+  // Theme operations
+  themes: {
+    getAll: () => Promise<any[]>;
+    getActive: () => Promise<any>;
+    setActive: (themeId: string) => Promise<void>;
+    createCustom: (themeData: any) => Promise<string>;
+  };
+
+  // CRM operations
+  crm: {
+    getIntegrations: () => Promise<any[]>;
+    createIntegration: (integrationData: any) => Promise<string>;
+    updateIntegration: (integrationId: string, updateData: any) => Promise<void>;
+  };
+
+  // Backup operations
+  backup: {
+    create: (backupType: string, options?: any) => Promise<any>;
+    restore: (backupId: string) => Promise<any>;
+    getAll: () => Promise<any[]>;
+  };
+
   // System operations
   system: {
     minimize: () => void;
