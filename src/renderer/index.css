@@ -221,7 +221,8 @@
 }
 
 .form-textarea {
-  @apply input-field resize-vertical min-h-[100px];
+  @apply input-field min-h-[100px];
+  resize: vertical;
 }
 
 /* Toggle switch */

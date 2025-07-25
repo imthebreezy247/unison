@@ -2,7 +2,7 @@
   "name": "unisonx",
   "version": "1.0.0",
   "description": "Ultra-advanced iPhone-Windows integration application",
-  "main": "src/main/main.js",
+  "main": "src/main/build/main.js",
   "scripts": {
     "start": "electron .",
     "dev": "concurrently \"npm run dev:renderer\" \"wait-on http://localhost:5173 && electron .\"",
