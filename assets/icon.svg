@@ -1,0 +1,49 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Gradient Background -->
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3B82F6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1E40AF;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="phone" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#F3F4F6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#D1D5DB;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="screen" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#111827;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#374151;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Rounded square background -->
+  <rect width="512" height="512" rx="80" fill="url(#bg)"/>
+  
+  <!-- iPhone outline -->
+  <rect x="180" y="80" width="152" height="280" rx="24" fill="url(#phone)" stroke="#9CA3AF" stroke-width="2"/>
+  
+  <!-- iPhone screen -->
+  <rect x="192" y="104" width="128" height="232" rx="16" fill="url(#screen)"/>
+  
+  <!-- iPhone notch -->
+  <rect x="228" y="88" width="56" height="12" rx="6" fill="#374151"/>
+  
+  <!-- Windows logo representation -->
+  <rect x="140" y="300" width="60" height="60" rx="8" fill="#00BCF2"/>
+  <rect x="148" y="308" width="20" height="20" fill="white"/>
+  <rect x="172" y="308" width="20" height="20" fill="white"/>
+  <rect x="148" y="332" width="20" height="20" fill="white"/>
+  <rect x="172" y="332" width="20" height="20" fill="white"/>
+  
+  <!-- Sync arrows -->
+  <path d="M332 320 L380 320 L370 310 M380 320 L370 330" stroke="white" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <path d="M380 340 L332 340 L342 350 M332 340 L342 330" stroke="white" stroke-width="4" fill="none" stroke-linecap="round"/>
+  
+  <!-- Connection dots -->
+  <circle cx="256" cy="200" r="4" fill="#10B981"/>
+  <circle cx="256" cy="220" r="4" fill="#10B981"/>
+  <circle cx="256" cy="240" r="4" fill="#10B981"/>
+  
+  <!-- UnisonX text -->
+  <text x="256" y="440" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="36" font-weight="bold">UnisonX</text>
+  <text x="256" y="470" text-anchor="middle" fill="#E5E7EB" font-family="Arial, sans-serif" font-size="16">iPhone • Windows • Unified</text>
+</svg>

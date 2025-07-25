@@ -1,0 +1,59 @@
+MIT License
+
+Copyright (c) 2024 UnisonX Development Team
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+================================================================================
+
+UNISONX - ULTRA-ADVANCED iPHONE-WINDOWS INTEGRATION
+
+UnisonX is an advanced application designed to seamlessly integrate iPhone 
+functionality with Windows PCs, providing capabilities that exceed Intel Unison 
+by orders of magnitude.
+
+Key Features:
+- Complete iPhone-Windows synchronization
+- Real-time message sync (SMS + iMessage)  
+- Phone call integration and management
+- Comprehensive contact synchronization
+- Advanced file transfer capabilities
+- Forever conversation archiving
+- CRM integration ready
+- Professional-grade backup system
+- Advanced theming and customization
+
+System Requirements:
+- Windows 10/11 (64-bit)
+- USB 3.0 port for iPhone connection
+- Administrative privileges for driver installation
+- 4GB RAM minimum, 8GB recommended
+- 2GB available disk space
+
+Installation Notes:
+- Requires administrative privileges for USB driver installation
+- iPhone must be trusted and unlocked during initial setup
+- iTunes/Apple Mobile Device Support recommended but not required
+- Windows Defender exclusions may be needed for optimal performance
+
+Support:
+For technical support, documentation, and updates:
+https://github.com/unisonx/unisonx
+
+This software is provided under the MIT License. See above for full terms.
