@@ -46,7 +46,7 @@ export interface CallLogData {
 
 export class BackupParser {
   private backupPath: string;
-  private manifestDb: Database | null = null;
+  private manifestDb: InstanceType<typeof Database> | null = null;
 
   constructor(backupPath: string) {
     this.backupPath = backupPath;

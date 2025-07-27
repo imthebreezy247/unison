@@ -98,9 +98,7 @@ interface UnisonXAPI {
   // Preferences operations
   preferences: {
     get: (group: string, key: string, defaultValue?: any) => Promise<any>;
-    set: (group: string, key: string, value: any, preferenceType?: string) => Promise<void>;
-    getGroup: (group: string) => Promise<any>;
-    getAll: () => Promise<any>;
+    set: (group: string, key: string, value: any, isSynced?: boolean) => Promise<void>;
   };
 
   // Theme operations

@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, Menu, Tray, shell } from 'electron';
 import * as path from 'path';
+import * as fs from 'fs';
 import { fileURLToPath } from 'url';
 import log from 'electron-log';
 import { DatabaseManager } from './database/DatabaseManager';
@@ -93,7 +94,7 @@ class UnisonXApp {
       this.mainWindow.loadURL('http://localhost:5173');
       this.mainWindow.webContents.openDevTools();
     } else {
-      this.mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+      this.mainWindow.loadFile(path.join(__dirname, '../../build/index.html'));
     }
 
     // Show window when ready
@@ -116,7 +117,21 @@ class UnisonXApp {
 
   private setupSystemTray(): void {
     if (process.platform === 'win32') {
-      this.tray = new Tray(path.join(__dirname, '../../assets/tray-icon.png'));
+      try {
+        // Try to load tray icon, fallback to nativeImage if file doesn't exist
+        const iconPath = path.join(__dirname, '../../assets/tray-icon.png');
+        if (fs.existsSync(iconPath)) {
+          this.tray = new Tray(iconPath);
+        } else {
+          // Create a simple tray icon programmatically
+          const { nativeImage } = require('electron');
+          const icon = nativeImage.createEmpty();
+          this.tray = new Tray(icon);
+        }
+      } catch (error) {
+        log.warn('Failed to create system tray:', error);
+        return;
+      }
       
       const contextMenu = Menu.buildFromTemplate([
         {
