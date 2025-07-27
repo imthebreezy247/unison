@@ -76,7 +76,7 @@ export class ContactSyncService extends EventEmitter {
         CREATE TABLE IF NOT EXISTS contact_groups (
           id TEXT PRIMARY KEY,
           name TEXT NOT NULL,
-          contact_ids TEXT, -- JSON array
+          contact_ids TEXT,
           color TEXT,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -102,7 +102,7 @@ export class ContactSyncService extends EventEmitter {
           new_contacts INTEGER,
           updated_contacts INTEGER,
           duplicates_found INTEGER,
-          errors TEXT -- JSON array
+          errors TEXT
         )
       `);
 
@@ -112,18 +112,24 @@ export class ContactSyncService extends EventEmitter {
           id TEXT PRIMARY KEY,
           contact_id TEXT NOT NULL,
           device_id TEXT NOT NULL,
-          conflict_data TEXT NOT NULL, -- JSON
+          conflict_data TEXT NOT NULL,
           resolution TEXT,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           resolved_at DATETIME
         )
       `);
 
-      // Add indexes for better performance
+      // Add indexes for better performance - each in separate statement
       await this.databaseManager.run(`
-        CREATE INDEX IF NOT EXISTS idx_contact_favorites_contact_id ON contact_favorites(contact_id);
-        CREATE INDEX IF NOT EXISTS idx_contact_sync_history_device_id ON contact_sync_history(device_id);
-        CREATE INDEX IF NOT EXISTS idx_contact_conflicts_contact_id ON contact_conflicts(contact_id);
+        CREATE INDEX IF NOT EXISTS idx_contact_favorites_contact_id ON contact_favorites(contact_id)
+      `);
+      
+      await this.databaseManager.run(`
+        CREATE INDEX IF NOT EXISTS idx_contact_sync_history_device_id ON contact_sync_history(device_id)
+      `);
+      
+      await this.databaseManager.run(`
+        CREATE INDEX IF NOT EXISTS idx_contact_conflicts_contact_id ON contact_conflicts(contact_id)
       `);
 
       log.info('Contact tables setup completed');

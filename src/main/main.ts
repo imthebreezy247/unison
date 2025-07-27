@@ -90,11 +90,13 @@ class UnisonXApp {
     });
 
     // Load the app
-    if (process.env.NODE_ENV === 'development') {
+    if (!app.isPackaged) {
+      // Development mode
       this.mainWindow.loadURL('http://localhost:5173');
       this.mainWindow.webContents.openDevTools();
     } else {
-      this.mainWindow.loadFile(path.join(__dirname, '../../build/index.html'));
+      // Production mode - point to the correct renderer folder
+      this.mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
     }
 
     // Show window when ready
