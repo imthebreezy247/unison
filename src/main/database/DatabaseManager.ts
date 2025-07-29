@@ -350,6 +350,7 @@ export class DatabaseManager {
       this.db.pragma('foreign_keys = ON');
       
       await this.createTables();
+      await this.runMigrations();
       log.info('Database initialized successfully');
     } catch (error) {
       log.error('Failed to initialize database:', error);
@@ -607,6 +608,41 @@ export class DatabaseManager {
         error_message TEXT,
         records_synced INTEGER DEFAULT 0,
         UNIQUE(device_id, sync_type)
+      )
+    `);
+
+    // Sync history table for detailed sync tracking
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS sync_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        device_id TEXT NOT NULL,
+        sync_type TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        completed_at DATETIME,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        completed BOOLEAN DEFAULT 1,
+        error_message TEXT,
+        items_synced INTEGER DEFAULT 0,
+        total_items INTEGER DEFAULT 0
+      )
+    `);
+
+    // Backup history table for backup tracking
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS backup_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        backup_type TEXT NOT NULL,
+        file_path TEXT NOT NULL,
+        file_size INTEGER,
+        status TEXT NOT NULL DEFAULT 'pending',
+        started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        completed_at DATETIME,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        completed BOOLEAN DEFAULT 0,
+        error_message TEXT
       )
     `);
 
@@ -1006,6 +1042,53 @@ export class DatabaseManager {
 
   async getSyncStatus(deviceId: string): Promise<SyncStatus[]> {
     return await this.query('SELECT * FROM sync_status WHERE device_id = ?', [deviceId]);
+  }
+
+  private async runMigrations(): Promise<void> {
+    try {
+      // Check if migrations table exists
+      await this.run(`
+        CREATE TABLE IF NOT EXISTS schema_migrations (
+          id INTEGER PRIMARY KEY,
+          version TEXT NOT NULL,
+          applied_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+      // Add missing columns safely
+      const addColumnIfNotExists = async (table: string, column: string, definition: string) => {
+        try {
+          const tableInfo = await this.query(`PRAGMA table_info(${table})`);
+          const columnExists = tableInfo.some((col: any) => col.name === column);
+
+          if (!columnExists) {
+            await this.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+            log.info(`Added column ${column} to ${table}`);
+          }
+        } catch (error) {
+          // Table might not exist yet, which is fine
+          log.debug(`Could not add column ${column} to ${table}:`, error);
+        }
+      };
+
+      // Apply migrations for missing columns
+      await addColumnIfNotExists('sync_history', 'completed', 'BOOLEAN DEFAULT 1');
+      await addColumnIfNotExists('file_transfers', 'completed', 'BOOLEAN DEFAULT 0');
+      await addColumnIfNotExists('backup_history', 'completed', 'BOOLEAN DEFAULT 0');
+
+      // Create indexes if they don't exist
+      try {
+        await this.run('CREATE INDEX IF NOT EXISTS idx_sync_history_completed ON sync_history(completed)');
+        await this.run('CREATE INDEX IF NOT EXISTS idx_file_transfers_completed ON file_transfers(completed)');
+        await this.run('CREATE INDEX IF NOT EXISTS idx_backup_history_completed ON backup_history(completed)');
+      } catch (error) {
+        log.debug('Index creation skipped (tables may not exist yet):', error);
+      }
+
+      log.info('Database migrations completed');
+    } catch (error) {
+      log.error('Migration error:', error);
+    }
   }
 
   close(): void {

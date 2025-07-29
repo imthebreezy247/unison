@@ -84,7 +84,7 @@ export class FileManagerService {
       try {
         await this.databaseManager.run(
           'INSERT OR IGNORE INTO file_folders (id, name, folder_type, color, icon, auto_organize) VALUES (?, ?, ?, ?, ?, ?)',
-          [folder.id, folder.name, folder.folder_type, folder.color, folder.icon, true]
+          [folder.id, folder.name, folder.folder_type, folder.color, folder.icon, 'true']
         );
       } catch (error) {
         log.warn(`Failed to create default folder ${folder.name}:`, error);
@@ -179,7 +179,7 @@ export class FileManagerService {
         transfer.transfer_method, transfer.status, transfer.progress,
         transfer.transfer_speed, transfer.bytes_transferred, transfer.checksum,
         transfer.original_created_date, transfer.original_modified_date,
-        transfer.favorite, transfer.auto_delete_source
+        transfer.favorite ? 'true' : 'false', transfer.auto_delete_source ? 'true' : 'false'
       ]);
 
       // Add to folder if specified

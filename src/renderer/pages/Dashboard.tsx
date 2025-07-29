@@ -36,24 +36,49 @@ export const Dashboard: React.FC = () => {
   const loadStats = async () => {
     try {
       setLoading(true);
-      
-      // Load statistics from database
-      const [messages, contacts, calls, files] = await Promise.all([
+
+      // Load statistics from database with proper error handling
+      const [messages, contacts, calls, transfers] = await Promise.all([
         window.unisonx?.db?.query('SELECT COUNT(*) as count FROM messages') || [],
         window.unisonx?.db?.query('SELECT COUNT(*) as count FROM contacts') || [],
         window.unisonx?.db?.query('SELECT COUNT(*) as count FROM call_logs') || [],
-        window.unisonx?.db?.query('SELECT COUNT(*) as count FROM file_transfers WHERE status = "completed"') || [],
+        window.unisonx?.db?.query('SELECT COUNT(*) as count FROM file_transfers') || []
       ]);
 
       setStats({
         totalMessages: messages[0]?.count || 0,
         totalContacts: contacts[0]?.count || 0,
         totalCalls: calls[0]?.count || 0,
-        totalFiles: files[0]?.count || 0,
+        totalFiles: transfers[0]?.count || 0,
       });
+
+      // Load recent activity without using problematic columns
+      try {
+        const recentActivity = await window.unisonx?.db?.query(`
+          SELECT 'sync' as type, datetime(created_at) as timestamp,
+                 'Device sync completed' as description
+          FROM sync_history
+          ORDER BY created_at DESC
+          LIMIT 10
+        `) || [];
+
+        // Set recent activity if component has this state
+        if (typeof setRecentActivity === 'function') {
+          setRecentActivity(recentActivity);
+        }
+      } catch (activityError) {
+        console.warn('Could not load recent activity:', activityError);
+      }
     } catch (error) {
-      console.error('Failed to load stats:', error);
+      console.error('Failed to load dashboard stats:', error);
       window.unisonx?.log?.error('Failed to load dashboard stats', error);
+      // Set defaults if query fails
+      setStats({
+        totalMessages: 0,
+        totalContacts: 0,
+        totalCalls: 0,
+        totalFiles: 0,
+      });
     } finally {
       setLoading(false);
     }

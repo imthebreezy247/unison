@@ -624,17 +624,28 @@ export class SettingsService {
 
     for (const setting of defaultSettings) {
       try {
+        // Ensure all values are properly stringified for SQLite
+        const stringValue = String(setting.value);
+        const settingId = `${setting.category}_${setting.key}`;
+
         await this.databaseManager.run(`
           INSERT OR IGNORE INTO app_settings (
-            id, category, setting_key, setting_value, setting_type, 
+            id, category, setting_key, setting_value, setting_type,
             display_name, description, default_value, is_user_configurable
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
-          `${setting.category}_${setting.key}`, setting.category, setting.key, setting.value,
-          setting.type, setting.display, setting.description, setting.value, true
+          settingId,
+          setting.category,
+          setting.key,
+          stringValue,
+          setting.type,
+          setting.display || setting.key,
+          setting.description || '',
+          stringValue,
+          true
         ]);
       } catch (error) {
-        log.warn(`Failed to initialize default setting ${setting.category}.${setting.key}:`, error);
+        log.error(`Failed to initialize setting ${setting.category}.${setting.key}:`, error);
       }
     }
   }
