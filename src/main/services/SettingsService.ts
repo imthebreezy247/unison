@@ -299,10 +299,10 @@ export class SettingsService {
   async setActiveTheme(themeId: string): Promise<void> {
     try {
       // Deactivate all themes
-      await this.databaseManager.run('UPDATE app_themes SET is_active = FALSE');
-      
+      await this.databaseManager.run('UPDATE app_themes SET is_active = ?', ['false']);
+
       // Activate selected theme
-      await this.databaseManager.run('UPDATE app_themes SET is_active = TRUE WHERE id = ?', [themeId]);
+      await this.databaseManager.run('UPDATE app_themes SET is_active = ? WHERE id = ?', ['true', themeId]);
       
       log.info(`Theme activated: ${themeId}`);
     } catch (error) {
@@ -491,8 +491,8 @@ export class SettingsService {
       `, [
         backupId, backupName, backupType, backupPath, stats.size,
         JSON.stringify({ version: app.getVersion(), tables: Object.keys(backupData).length }),
-        options?.includeData !== false, options?.includeSettings !== false,
-        options?.includeMedia !== false, 'none', false, false
+        options?.includeData !== false ? 'true' : 'false', options?.includeSettings !== false ? 'true' : 'false',
+        options?.includeMedia !== false ? 'true' : 'false', 'none', 'false', 'false'
       ]);
       
       log.info(`Backup created: ${backupName} (${stats.size} bytes)`);
@@ -642,7 +642,7 @@ export class SettingsService {
           setting.display || setting.key,
           setting.description || '',
           stringValue,
-          true
+          'true'
         ]);
       } catch (error) {
         log.error(`Failed to initialize setting ${setting.category}.${setting.key}:`, error);
@@ -706,7 +706,7 @@ export class SettingsService {
         `, [
           `theme-${theme.name.toLowerCase()}`, theme.name, theme.type,
           JSON.stringify(theme.colors), JSON.stringify(theme.fonts), JSON.stringify(theme.layout),
-          true, theme.name === 'Light', 'system'
+          'true', theme.name === 'Light' ? 'true' : 'false', 'system'
         ]);
       } catch (error) {
         log.warn(`Failed to initialize default theme ${theme.name}:`, error);
@@ -732,7 +732,7 @@ export class SettingsService {
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `, [
           `shortcut-${shortcut.action}`, shortcut.action, shortcut.name,
-          shortcut.shortcut, shortcut.shortcut, shortcut.category, true, true
+          shortcut.shortcut, shortcut.shortcut, shortcut.category, 'true', 'true'
         ]);
       } catch (error) {
         log.warn(`Failed to initialize default shortcut ${shortcut.action}:`, error);
@@ -755,7 +755,7 @@ export class SettingsService {
             id, rule_name, notification_type, priority_level, is_enabled
           ) VALUES (?, ?, ?, ?, ?)
         `, [
-          `rule-${rule.type}`, rule.name, rule.type, rule.priority, true
+          `rule-${rule.type}`, rule.name, rule.type, rule.priority, 'true'
         ]);
       } catch (error) {
         log.warn(`Failed to initialize default notification rule ${rule.name}:`, error);
