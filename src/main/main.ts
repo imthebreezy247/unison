@@ -266,6 +266,19 @@ class UnisonXApp {
       app.quit();
     });
 
+    // Version information handlers
+    ipcMain.handle('system:get-version', () => {
+      return app.getVersion();
+    });
+
+    ipcMain.on('system:get-versions', (event) => {
+      event.returnValue = {
+        node: process.versions.node,
+        electron: process.versions.electron,
+        chrome: process.versions.chrome,
+      };
+    });
+
     // Logging
     ipcMain.handle('log:info', (event, message: string) => {
       log.info(`[Renderer] ${message}`);
@@ -877,6 +890,45 @@ class UnisonXApp {
     });
   }
 
+  private setupDeviceManagerEvents(): void {
+    // Forward device manager events to renderer process
+    this.deviceManager.on('devices-updated', (devices) => {
+      if (this.mainWindow) {
+        this.mainWindow.webContents.send('devices-updated', devices);
+      }
+    });
+
+    this.deviceManager.on('device-connected', (device) => {
+      if (this.mainWindow) {
+        this.mainWindow.webContents.send('device-connected', device);
+      }
+    });
+
+    this.deviceManager.on('device-disconnected', (device) => {
+      if (this.mainWindow) {
+        this.mainWindow.webContents.send('device-disconnected', device);
+      }
+    });
+
+    this.deviceManager.on('device-status-updated', (device) => {
+      if (this.mainWindow) {
+        this.mainWindow.webContents.send('device-status-updated', device);
+      }
+    });
+
+    this.deviceManager.on('trust-required', (device) => {
+      if (this.mainWindow) {
+        this.mainWindow.webContents.send('trust-required', device);
+      }
+    });
+
+    this.deviceManager.on('pairing-requested', (device) => {
+      if (this.mainWindow) {
+        this.mainWindow.webContents.send('pairing-requested', device);
+      }
+    });
+  }
+
   private async initializeServices(): Promise<void> {
     try {
       // Initialize database
@@ -886,6 +938,9 @@ class UnisonXApp {
       // Initialize device manager
       await this.deviceManager.initialize();
       log.info('Device manager initialized successfully');
+
+      // Set up device manager event forwarding
+      this.setupDeviceManagerEvents();
 
       // Initialize notification manager
       await this.notificationManager.initialize();

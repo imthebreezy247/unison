@@ -715,17 +715,17 @@ export const Settings: React.FC = () => {
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600 dark:text-gray-400">Node.js</span>
-              <span className="font-medium">{process.versions?.node || 'Unknown'}</span>
+              <span className="font-medium">{window.unisonx?.versions?.node || 'Unknown'}</span>
             </div>
           </div>
           <div className="space-y-3">
             <div className="flex justify-between">
               <span className="text-gray-600 dark:text-gray-400">Electron</span>
-              <span className="font-medium">{process.versions?.electron || 'Unknown'}</span>
+              <span className="font-medium">{window.unisonx?.versions?.electron || 'Unknown'}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600 dark:text-gray-400">Chrome</span>
-              <span className="font-medium">{process.versions?.chrome || 'Unknown'}</span>
+              <span className="font-medium">{window.unisonx?.versions?.chrome || 'Unknown'}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600 dark:text-gray-400">License</span>

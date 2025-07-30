@@ -128,7 +128,14 @@ interface UnisonXAPI {
     minimize: () => void;
     close: () => void;
     quit: () => void;
-    getVersion: () => string;
+    getVersion: () => Promise<string>;
+  };
+
+  // Version information
+  versions: {
+    node: string;
+    electron: string;
+    chrome: string;
   };
 
   // Logging
@@ -266,8 +273,26 @@ const api: UnisonXAPI = {
     minimize: () => ipcRenderer.invoke('system:minimize'),
     close: () => ipcRenderer.invoke('system:close'),
     quit: () => ipcRenderer.invoke('system:quit'),
-    getVersion: () => process.env.npm_package_version || '1.0.0',
+    getVersion: () => ipcRenderer.invoke('system:get-version'),
   },
+
+  // Version information
+  versions: (() => {
+    try {
+      const versions = ipcRenderer.sendSync('system:get-versions');
+      return {
+        node: versions?.node || 'Unknown',
+        electron: versions?.electron || 'Unknown',
+        chrome: versions?.chrome || 'Unknown',
+      };
+    } catch (error) {
+      return {
+        node: 'Unknown',
+        electron: 'Unknown',
+        chrome: 'Unknown',
+      };
+    }
+  })(),
 
   // Logging
   log: {

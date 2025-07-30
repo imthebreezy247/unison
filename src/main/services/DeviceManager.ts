@@ -483,15 +483,19 @@ export class DeviceManager extends EventEmitter {
   }
 
   private convertToDeviceInfo(iDevice: iPhoneDevice): DeviceInfo {
+    // Device is "connected" if it's physically detected (regardless of trust status)
+    const physicallyConnected = true; // If we detected it, it's physically connected
+    const fullyConnected = iDevice.paired && iDevice.trusted;
+    
     return {
       id: iDevice.udid,
       name: iDevice.name,
       type: iDevice.deviceClass === 'iPad' ? 'iPad' : 'iPhone',
       model: iDevice.model,
       osVersion: iDevice.osVersion,
-      connected: iDevice.paired && iDevice.trusted,
+      connected: physicallyConnected, // Show as connected even if not trusted
       batteryLevel: iDevice.batteryLevel,
-      connectionType: iDevice.paired && iDevice.trusted ? 'usb' : 'disconnected',
+      connectionType: fullyConnected ? 'usb' : 'disconnected',
       lastSeen: new Date().toISOString(),
       trusted: iDevice.trusted,
       paired: iDevice.paired,

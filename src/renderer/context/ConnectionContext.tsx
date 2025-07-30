@@ -70,11 +70,64 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({ children
 
     initializeConnection();
 
-    // Set up periodic device scanning
-    const scanInterval = setInterval(scanForDevices, 10000); // Scan every 10 seconds
+    // Set up real-time device event listeners
+    const handleDevicesUpdated = (devices: any[]) => {
+      setState(prev => ({
+        ...prev,
+        devices: devices.map((device: any) => ({
+          id: device.id,
+          name: device.name || 'Unknown iPhone',
+          type: device.type || 'iPhone',
+          model: device.model || 'Unknown Model',
+          osVersion: device.osVersion || 'Unknown',
+          connected: device.connected || false,
+          batteryLevel: device.batteryLevel,
+          connectionType: device.connectionType || 'disconnected',
+          lastSeen: device.lastSeen || new Date().toISOString(),
+          trusted: device.trusted,
+          paired: device.paired,
+          serialNumber: device.serialNumber,
+        })),
+        isScanning: false,
+      }));
+      window.unisonx?.log?.info(`Real-time update: Found ${devices.length} devices`);
+    };
+
+    const handleDeviceConnected = (device: any) => {
+      setState(prev => ({
+        ...prev,
+        devices: prev.devices.map(d => 
+          d.id === device.id ? { ...d, connected: true, connectionType: 'usb' } : d
+        ),
+        activeDevice: device,
+      }));
+      window.unisonx?.log?.info(`Device connected: ${device.name}`);
+    };
+
+    const handleDeviceDisconnected = (device: any) => {
+      setState(prev => ({
+        ...prev,
+        devices: prev.devices.map(d => 
+          d.id === device.id ? { ...d, connected: false, connectionType: 'disconnected' } : d
+        ),
+        activeDevice: prev.activeDevice?.id === device.id ? null : prev.activeDevice,
+      }));
+      window.unisonx?.log?.info(`Device disconnected: ${device.name}`);
+    };
+
+    // Set up periodic device scanning as fallback
+    const scanInterval = setInterval(scanForDevices, 30000); // Scan every 30 seconds as fallback
+
+    // Listen for device events
+    window.unisonx?.on('devices-updated', handleDevicesUpdated);
+    window.unisonx?.on('device-connected', handleDeviceConnected);
+    window.unisonx?.on('device-disconnected', handleDeviceDisconnected);
 
     return () => {
       clearInterval(scanInterval);
+      window.unisonx?.off('devices-updated', handleDevicesUpdated);
+      window.unisonx?.off('device-connected', handleDeviceConnected);
+      window.unisonx?.off('device-disconnected', handleDeviceDisconnected);
     };
   }, []);
 
