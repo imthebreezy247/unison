@@ -47,13 +47,7 @@ export class DeviceManager extends EventEmitter {
     
     // Set up USB device monitoring as fallback
     try {
-      (usb as any).on('attach', (device: any) => {
-        this.handleDeviceAttached(device);
-      });
-
-      (usb as any).on('detach', (device: any) => {
-        this.handleDeviceDetached(device);
-      });
+      this.setupUSBMonitoring();
     } catch (error) {
       log.warn('USB monitoring not available:', error);
     }
@@ -106,6 +100,49 @@ export class DeviceManager extends EventEmitter {
     this.iPhoneConnection.on('transfer-failed', (data: any) => {
       this.emit('transfer-failed', data);
     });
+  }
+
+  private setupUSBMonitoring(): void {
+    // Use polling instead of events since usb.on is not available
+    setInterval(() => {
+      this.checkUSBDevices();
+    }, 2000); // Check every 2 seconds
+  }
+
+  private async checkUSBDevices(): Promise<void> {
+    try {
+      const currentDevices = usb.getDeviceList();
+      const currentIDs = new Set<string>();
+      
+      for (const device of currentDevices) {
+        if (this.isIOSDevice(device)) {
+          const deviceId = `${device.deviceDescriptor.idVendor}-${device.deviceDescriptor.idProduct}-${device.busNumber}-${device.deviceAddress}`;
+          currentIDs.add(deviceId);
+          
+          // Check if this is a new device
+          if (!this.connectedDevices.has(deviceId)) {
+            this.handleDeviceAttached(device);
+          }
+        }
+      }
+      
+      // Check for removed devices
+      for (const deviceId of this.connectedDevices) {
+        if (!currentIDs.has(deviceId)) {
+          // Device was removed
+          const deviceInfo = this.devices.get(deviceId);
+          if (deviceInfo) {
+            deviceInfo.connected = false;
+            deviceInfo.connectionType = 'disconnected';
+            this.devices.set(deviceId, deviceInfo);
+            this.emit('device-disconnected', deviceInfo);
+          }
+          this.connectedDevices.delete(deviceId);
+        }
+      }
+    } catch (error) {
+      log.debug('USB device check error:', error);
+    }
   }
 
   async scanForDevices(): Promise<DeviceInfo[]> {
