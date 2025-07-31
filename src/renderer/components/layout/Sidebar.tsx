@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { 
   Home, 
@@ -20,6 +20,22 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggleCollapse }) => {
   const { state } = useConnection();
+  const [version, setVersion] = useState('1.0.0');
+  
+  useEffect(() => {
+    const loadVersion = async () => {
+      try {
+        const appVersion = await window.unisonx?.system?.getVersion();
+        if (appVersion) {
+          setVersion(appVersion);
+        }
+      } catch (error) {
+        console.error('Failed to load version:', error);
+      }
+    };
+    
+    loadVersion();
+  }, []);
   
   const navItems = [
     { path: '/', icon: Home, label: 'Dashboard' },
@@ -98,7 +114,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggleCollapse })
       {!collapsed && (
         <div className="p-4 border-t border-gray-200 dark:border-gray-700">
           <div className="text-xs text-gray-500 dark:text-gray-500">
-            Version {window.unisonx?.system?.getVersion()}
+            Version {version}
           </div>
         </div>
       )}
