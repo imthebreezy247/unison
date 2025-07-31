@@ -240,6 +240,37 @@ export class DeviceManager extends EventEmitter {
     }
   }
 
+  async pairDevice(deviceId: string): Promise<boolean> {
+    try {
+      const deviceInfo = this.devices.get(deviceId);
+      if (!deviceInfo) {
+        log.error(`Device not found: ${deviceId}`);
+        return false;
+      }
+
+      log.info(`Attempting to pair device: ${deviceInfo.name}`);
+
+      // Use iPhone connection service
+      const success = await this.iPhoneConnection.pairDevice(deviceId);
+
+      if (success) {
+        // Update device info
+        deviceInfo.paired = true;
+        deviceInfo.trusted = true;
+        this.devices.set(deviceId, deviceInfo);
+        
+        log.info(`Successfully paired device: ${deviceInfo.name}`);
+        return true;
+      } else {
+        log.error(`Failed to pair device: ${deviceInfo.name}`);
+        return false;
+      }
+    } catch (error) {
+      log.error('Error pairing device:', error);
+      return false;
+    }
+  }
+
   async disconnectDevice(deviceId: string): Promise<boolean> {
     try {
       const deviceInfo = this.devices.get(deviceId);
