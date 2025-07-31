@@ -305,7 +305,7 @@ const api: UnisonXAPI = {
     ipcRenderer.on(channel, (event, ...args) => callback(...args));
   },
   off: (channel: string, callback: (...args: any[]) => void) => {
-    ipcRenderer.removeListener(channel, callback);
+    ipcRenderer.removeAllListeners(channel);
   },
 };
 

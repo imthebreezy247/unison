@@ -59,19 +59,9 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({ children
 
   // Initialize connection monitoring
   useEffect(() => {
-    const initializeConnection = async () => {
-      try {
-        await scanForDevices();
-      } catch (error) {
-        console.error('Failed to initialize connection:', error);
-        window.unisonx?.log?.error('Failed to initialize connection', error);
-      }
-    };
-
-    initializeConnection();
-
-    // Set up real-time device event listeners
+    // Set up real-time device event listeners first
     const handleDevicesUpdated = (devices: any[]) => {
+      console.log('ConnectionContext: Received devices-updated event with', devices.length, 'devices');
       setState(prev => ({
         ...prev,
         devices: devices.map((device: any) => ({
@@ -94,6 +84,7 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({ children
     };
 
     const handleDeviceConnected = (device: any) => {
+      console.log('ConnectionContext: Received device-connected event for', device.name);
       setState(prev => ({
         ...prev,
         devices: prev.devices.map(d => 
@@ -105,6 +96,7 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({ children
     };
 
     const handleDeviceDisconnected = (device: any) => {
+      console.log('ConnectionContext: Received device-disconnected event for', device.name);
       setState(prev => ({
         ...prev,
         devices: prev.devices.map(d => 
@@ -115,13 +107,27 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({ children
       window.unisonx?.log?.info(`Device disconnected: ${device.name}`);
     };
 
-    // Set up periodic device scanning as fallback
-    const scanInterval = setInterval(scanForDevices, 30000); // Scan every 30 seconds as fallback
-
-    // Listen for device events
+    // Listen for device events first
+    console.log('ConnectionContext: Setting up event listeners');
     window.unisonx?.on('devices-updated', handleDevicesUpdated);
     window.unisonx?.on('device-connected', handleDeviceConnected);
     window.unisonx?.on('device-disconnected', handleDeviceDisconnected);
+
+    // Then start scanning
+    const initializeConnection = async () => {
+      try {
+        console.log('ConnectionContext: Starting initial device scan');
+        await scanForDevices();
+      } catch (error) {
+        console.error('Failed to initialize connection:', error);
+        window.unisonx?.log?.error('Failed to initialize connection', error);
+      }
+    };
+
+    initializeConnection();
+
+    // Set up periodic device scanning as fallback
+    const scanInterval = setInterval(scanForDevices, 30000); // Scan every 30 seconds as fallback
 
     return () => {
       clearInterval(scanInterval);
@@ -137,7 +143,9 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({ children
     setState(prev => ({ ...prev, isScanning: true }));
 
     try {
+      console.log('ConnectionContext: Calling device scan API');
       const devices = await window.unisonx?.device?.scan() || [];
+      console.log('ConnectionContext: Device scan returned', devices.length, 'devices:', devices);
       
       setState(prev => ({
         ...prev,
@@ -151,6 +159,9 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({ children
           batteryLevel: device.batteryLevel,
           connectionType: device.connectionType || 'disconnected',
           lastSeen: device.lastSeen || new Date().toISOString(),
+          trusted: device.trusted,
+          paired: device.paired,
+          serialNumber: device.serialNumber,
         })),
         isScanning: false,
       }));

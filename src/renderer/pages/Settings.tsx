@@ -51,10 +51,22 @@ export const Settings: React.FC = () => {
   const [backups, setBackups] = useState<Backup[]>([]);
   const [loading, setLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState<string>('');
+  const [version, setVersion] = useState<string>('Loading...');
 
   useEffect(() => {
     loadSettingsData();
+    loadVersion();
   }, []);
+
+  const loadVersion = async () => {
+    try {
+      const versionInfo = await window.unisonx?.system?.getVersion();
+      setVersion(versionInfo || 'Unknown');
+    } catch (error) {
+      console.error('Failed to load version:', error);
+      setVersion('Unknown');
+    }
+  };
 
   const loadSettingsData = async () => {
     try {
@@ -413,7 +425,7 @@ export const Settings: React.FC = () => {
           {activeTab === 'sync' && settings.sync && (
             <div className="card p-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
-                <Sync size={20} />
+                <RefreshCw size={20} />
                 Synchronization Settings
               </h2>
               <div className="space-y-4">
@@ -693,7 +705,7 @@ export const Settings: React.FC = () => {
           <div className="space-y-3">
             <div className="flex justify-between">
               <span className="text-gray-600 dark:text-gray-400">Version</span>
-              <span className="font-medium">{window.unisonx?.system?.getVersion()}</span>
+              <span className="font-medium">{version}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600 dark:text-gray-400">Platform</span>
