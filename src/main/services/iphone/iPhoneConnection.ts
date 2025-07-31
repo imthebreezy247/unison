@@ -146,6 +146,9 @@ export class iPhoneConnection extends EventEmitter {
 
         const lines = stdout.split('\n').filter(line => line.trim() && !line.includes('Node,'));
         
+        // Track unique devices by serial number to avoid duplicates
+        const uniqueDevices = new Map<string, iPhoneDevice>();
+        
         for (const line of lines) {
           try {
             const parts = line.split(',');
@@ -154,8 +157,20 @@ export class iPhoneConnection extends EventEmitter {
               const name = parts[2] || 'iPhone';
               const status = parts[3] || '';
               
-              if (deviceId.includes('VID_05AC')) {
-                const udid = this.extractUDID(deviceId) || `iphone-${Date.now()}`;
+              // Skip USB composite/interface entries - only process actual iPhone entries
+              if (deviceId.includes('VID_05AC') && 
+                  !name.includes('Composite') && 
+                  !name.includes('USB Device') &&
+                  (name.includes('iPhone') || name.includes('iPad'))) {
+                
+                const serialNumber = this.extractSerial(deviceId);
+                
+                // Skip if we've already processed this device
+                if (uniqueDevices.has(serialNumber)) {
+                  continue;
+                }
+                
+                const udid = this.extractUDID(deviceId) || serialNumber;
                 
                 // Check trust and pairing status using libimobiledevice tools
                 const trustStatus = await this.checkDeviceTrustStatus(udid);
@@ -166,7 +181,7 @@ export class iPhoneConnection extends EventEmitter {
                   model: this.extractModel(name),
                   osVersion: '17.0',
                   deviceClass: 'iPhone',
-                  serialNumber: this.extractSerial(deviceId) || 'Unknown',
+                  serialNumber: serialNumber,
                   batteryLevel: 100,
                   batteryState: 'Full',
                   storageTotal: 128 * 1024 * 1024 * 1024,
@@ -175,7 +190,7 @@ export class iPhoneConnection extends EventEmitter {
                   paired: trustStatus.paired,
                 };
                 
-                devices.push(device);
+                uniqueDevices.set(serialNumber, device);
                 log.info('Detected iOS device:', device.name);
                 log.info(`  Trust status: trusted=${trustStatus.trusted}, paired=${trustStatus.paired}`);
               }
@@ -184,6 +199,9 @@ export class iPhoneConnection extends EventEmitter {
             log.debug('Failed to parse device line:', line);
           }
         }
+        
+        // Add unique devices to the result array
+        devices.push(...uniqueDevices.values());
       } catch (error) {
         log.error('WMI query failed:', error);
       }
@@ -512,10 +530,10 @@ export class iPhoneConnection extends EventEmitter {
   }
 
   private startMonitoring(): void {
-    // Monitor for device changes using Windows events
+    // Monitor for device changes using Windows events - reduce frequency to avoid flickering
     this.monitoringProcess = setInterval(() => {
       this.scanDevices();
-    }, 5000);
+    }, 30000); // Changed from 5s to 30s
 
     // Immediate first scan
     this.scanDevices();

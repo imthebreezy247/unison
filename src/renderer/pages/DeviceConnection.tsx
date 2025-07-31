@@ -21,32 +21,56 @@ export const DeviceConnection: React.FC = () => {
   const [expandedDevice, setExpandedDevice] = useState<string | null>(null);
 
   const handleConnect = async (deviceId: string) => {
-    await connectDevice(deviceId);
+    console.log('Connect button clicked for device:', deviceId);
+    window.unisonx?.log?.info(`Connect button clicked for device: ${deviceId}`);
+    try {
+      await connectDevice(deviceId);
+    } catch (error) {
+      console.error('Connect failed:', error);
+      window.unisonx?.log?.error('Connect failed', error);
+    }
   };
 
   const handleDisconnect = async (deviceId: string) => {
-    await disconnectDevice(deviceId);
+    console.log('Disconnect button clicked for device:', deviceId);
+    window.unisonx?.log?.info(`Disconnect button clicked for device: ${deviceId}`);
+    try {
+      await disconnectDevice(deviceId);
+    } catch (error) {
+      console.error('Disconnect failed:', error);
+      window.unisonx?.log?.error('Disconnect failed', error);
+    }
   };
 
   const handlePairDevice = async (deviceId: string) => {
+    console.log('Pair button clicked for device:', deviceId);
+    window.unisonx?.log?.info(`Pair button clicked for device: ${deviceId}`);
     try {
       const success = await window.unisonx?.device?.pair(deviceId);
       if (success) {
+        console.log('Device paired successfully!');
         window.unisonx?.log?.info(`Device paired successfully: ${deviceId}`);
         // Refresh device list
         await scanForDevices();
+      } else {
+        console.error('Device pairing failed');
+        window.unisonx?.log?.error('Device pairing failed');
       }
     } catch (error) {
+      console.error('Failed to pair device:', error);
       window.unisonx?.log?.error('Failed to pair device', error);
     }
   };
 
   const handleViewFiles = async (deviceId: string) => {
+    console.log('View files button clicked for device:', deviceId);
+    window.unisonx?.log?.info(`View files button clicked for device: ${deviceId}`);
     try {
       const files = await window.unisonx?.device?.getFiles(deviceId);
       console.log('Device files:', files);
       // In a real implementation, would open file browser
     } catch (error) {
+      console.error('Failed to get device files:', error);
       window.unisonx?.log?.error('Failed to get device files', error);
     }
   };

@@ -103,10 +103,9 @@ export class DeviceManager extends EventEmitter {
   }
 
   private setupUSBMonitoring(): void {
-    // Use polling instead of events since usb.on is not available
-    setInterval(() => {
-      this.checkUSBDevices();
-    }, 2000); // Check every 2 seconds
+    // Disable USB polling since iPhone connection service handles device detection
+    // This prevents duplicate device detection and excessive scanning
+    log.info('USB monitoring delegated to iPhone connection service');
   }
 
   private async checkUSBDevices(): Promise<void> {
@@ -159,21 +158,8 @@ export class DeviceManager extends EventEmitter {
         this.devices.set(device.id, device);
       }
 
-      // Also check USB devices as fallback
-      const usbDevices = usb.getDeviceList();
-      for (const device of usbDevices) {
-        if (this.isIOSDevice(device)) {
-          const deviceId = `${device.deviceDescriptor.idVendor}-${device.deviceDescriptor.idProduct}-${device.busNumber}-${device.deviceAddress}`;
-          // Only add if not already detected by iPhone connection
-          if (!this.devices.has(deviceId)) {
-            const deviceInfo = await this.getDeviceInfo(device);
-            if (deviceInfo) {
-              this.devices.set(deviceInfo.id, deviceInfo);
-              deviceInfos.push(deviceInfo);
-            }
-          }
-        }
-      }
+      // USB device detection is now handled entirely by iPhone connection service
+      // This prevents duplicate device entries and excessive scanning
 
       this.emit('devices-updated', deviceInfos);
       return deviceInfos;
@@ -188,10 +174,10 @@ export class DeviceManager extends EventEmitter {
       clearInterval(this.scanInterval);
     }
 
-    // Scan every 5 seconds
+    // Scan every 30 seconds to reduce flickering
     this.scanInterval = setInterval(() => {
       this.scanForDevices();
-    }, 5000);
+    }, 30000);
 
     log.info('Started device scanning');
   }
