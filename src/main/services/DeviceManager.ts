@@ -52,12 +52,11 @@ export class DeviceManager extends EventEmitter {
       log.warn('USB monitoring not available:', error);
     }
 
-    // Initial scan
-    await this.scanForDevices();
+    // Don't do initial scan - let it be triggered manually to prevent flickering
   }
 
   private setupiPhoneListeners(): void {
-    this.iPhoneConnection.on('devices-changed', (devices: iPhoneDevice[]) => {
+    this.iPhoneConnection.on('devices-updated', (devices: iPhoneDevice[]) => {
       this.updateDevices(devices);
     });
 
@@ -170,16 +169,10 @@ export class DeviceManager extends EventEmitter {
   }
 
   startScanning(): void {
-    if (this.scanInterval) {
-      clearInterval(this.scanInterval);
-    }
-
-    // Scan every 30 seconds to reduce flickering
-    this.scanInterval = setInterval(() => {
-      this.scanForDevices();
-    }, 30000);
-
-    log.info('Started device scanning');
+    // Disable automatic scanning - only scan on demand to prevent flickering
+    log.info('Automatic scanning disabled - using manual scan only');
+    
+    // Don't do initial scan here - let it be triggered manually
   }
 
   stopScanning(): void {
