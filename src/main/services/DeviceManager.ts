@@ -564,14 +564,6 @@ export class DeviceManager extends EventEmitter {
     }
   }
 
-  async pairDevice(deviceId: string): Promise<boolean> {
-    try {
-      return await this.iPhoneConnection.pairDevice(deviceId);
-    } catch (error) {
-      log.error('Failed to pair device:', error);
-      return false;
-    }
-  }
 
   async getDeviceFiles(deviceId: string, path: string = '/'): Promise<any[]> {
     try {
