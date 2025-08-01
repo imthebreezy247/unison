@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import * as path from 'path';
 import * as fs from 'fs';
-import { exec, spawn } from 'child_process';
+import { exec } from 'child_process';
 import { promisify } from 'util';
 import log from 'electron-log';
 
@@ -88,134 +88,7 @@ export class iPhoneConnection extends EventEmitter {
     }
   }
 
-  private async detectDevicesViaWMI(): Promise<iPhoneDevice[]> {
-    try {
-      // Multiple detection methods for better reliability
-      const devices: iPhoneDevice[] = [];
-      
-      // Method 1: Check for Apple Mobile Device USB Driver
-      try {
-        const { stdout: usbDevices } = await execAsync(
-          'wmic path Win32_USBControllerDevice get Dependent /format:csv'
-        );
-        
-        const lines = usbDevices.split('\n');
-        for (const line of lines) {
-          if (line.includes('VID_05AC') && (line.includes('PID_12A8') || line.includes('PID_12AA') || line.includes('PID_12AB'))) {
-            // Apple vendor ID detected
-            log.info('Found Apple USB device:', line);
-          }
-        }
-      } catch (e) {
-        log.debug('USB device query failed:', e);
-      }
-      
-      // Method 2: Check for portable devices
-      try {
-        const { stdout } = await execAsync(
-          'wmic path Win32_PnPEntity where "DeviceID like \'%VID_05AC%\' and (DeviceID like \'%PID_12A%\' or Name like \'%iPhone%\' or Name like \'%iPad%\')" get Name,DeviceID,Status,Service /format:csv'
-        );
-
-        const lines = stdout.split('\n').filter(line => line.trim() && !line.includes('Node,'));
-        
-        // Track unique devices by serial number to avoid duplicates
-        const uniqueDevices = new Map<string, iPhoneDevice>();
-        
-        for (const line of lines) {
-          try {
-            const parts = line.split(',');
-            if (parts.length >= 4) {
-              const deviceId = parts[1] || '';
-              const name = parts[2] || 'iPhone';
-              const status = parts[3] || '';
-              
-              // Skip USB composite/interface entries - only process actual iPhone entries
-              if (deviceId.includes('VID_05AC') && 
-                  !name.includes('Composite') && 
-                  !name.includes('USB Device') &&
-                  (name.includes('iPhone') || name.includes('iPad'))) {
-                
-                const serialNumber = this.extractSerial(deviceId);
-                
-                // Skip if we've already processed this device
-                if (uniqueDevices.has(serialNumber)) {
-                  continue;
-                }
-                
-                const udid = this.extractUDID(deviceId) || serialNumber;
-                
-                // Check trust and pairing status using libimobiledevice tools
-                const trustStatus = await this.checkDeviceTrustStatus(udid);
-                
-                const device: iPhoneDevice = {
-                  udid: udid,
-                  name: this.cleanDeviceName(name),
-                  model: this.extractModel(name),
-                  osVersion: '17.0',
-                  deviceClass: 'iPhone',
-                  serialNumber: serialNumber,
-                  batteryLevel: 100,
-                  batteryState: 'Full',
-                  storageTotal: 128 * 1024 * 1024 * 1024,
-                  storageFree: 64 * 1024 * 1024 * 1024,
-                  trusted: trustStatus.trusted,
-                  paired: trustStatus.paired,
-                };
-                
-                uniqueDevices.set(serialNumber, device);
-                log.info('Detected iOS device:', device.name);
-                log.info(`  Trust status: trusted=${trustStatus.trusted}, paired=${trustStatus.paired}`);
-              }
-            }
-          } catch (parseError) {
-            log.debug('Failed to parse device line:', line);
-          }
-        }
-        
-        // Add unique devices to the result array
-        devices.push(...uniqueDevices.values());
-      } catch (error) {
-        log.error('WMI query failed:', error);
-      }
-      
-      // Method 3: Check Windows Registry for connected Apple devices
-      try {
-        const { stdout: regOutput } = await execAsync(
-          'reg query HKLM\\SYSTEM\\CurrentControlSet\\Enum\\USB /s /f "Apple" 2>nul'
-        );
-        
-        if (regOutput.includes('Apple')) {
-          log.info('Found Apple devices in registry');
-        }
-      } catch (e) {
-        // Registry query might fail, that's ok
-      }
-      
-      // If no devices found via WMI, create a mock device for testing
-      if (devices.length === 0 && process.env.NODE_ENV === 'development') {
-        log.info('No real devices found, adding mock device for testing');
-        devices.push({
-          udid: 'mock-iphone-001',
-          name: 'Test iPhone',
-          model: 'iPhone 15',
-          osVersion: '17.0',
-          deviceClass: 'iPhone',
-          serialNumber: 'MOCK123456',
-          batteryLevel: 85,
-          batteryState: 'Unplugged',
-          storageTotal: 256 * 1024 * 1024 * 1024,
-          storageFree: 128 * 1024 * 1024 * 1024,
-          trusted: false,
-          paired: false,
-        });
-      }
-
-      return devices;
-    } catch (error) {
-      log.error('Device detection failed:', error);
-      return [];
-    }
-  }
+  // detectDevicesViaWMI method removed - scanning disabled to prevent flickering
 
   async connectDevice(udid: string): Promise<boolean> {
     try {
@@ -539,7 +412,7 @@ export class iPhoneConnection extends EventEmitter {
     }, 10000); // Update every 10 seconds
   }
 
-  private async queryDeviceInfo(udid: string): Promise<Partial<iPhoneDevice> | null> {
+  private async queryDeviceInfo(_udid: string): Promise<Partial<iPhoneDevice> | null> {
     // In a real implementation, this would query device info via native APIs
     // For now, return mock updated info
     return {
@@ -553,60 +426,13 @@ export class iPhoneConnection extends EventEmitter {
     return this.queryDeviceInfo(udid);
   }
 
-  private extractUDID(deviceId: string): string {
-    // Extract UDID from Windows device ID
-    // User's iPhone UDID format: 00008101-000120620AE9001E
-    
-    // Look for user's specific iPhone UDID (with or without hyphens)
-    if (deviceId.includes('00008101000120620AE9001E') || deviceId.includes('00008101-000120620AE9001E')) {
-      return '00008101-000120620AE9001E';
-    }
-    
-    // Try to find standard UDID patterns
-    // iPhone UDID pattern: 8 digits - 15 digits (24 chars total including hyphen)
-    const iPhoneUdidPattern = deviceId.match(/([A-F0-9]{8}-[A-F0-9]{15})/i);
-    if (iPhoneUdidPattern) {
-      return iPhoneUdidPattern[1];
-    }
-    
-    // Traditional 40 hex char UDID
-    const traditionalUdidPattern = deviceId.match(/([A-F0-9]{40})/i);
-    if (traditionalUdidPattern) {
-      return traditionalUdidPattern[1];
-    }
-    
-    // Fallback to device ID extraction
-    const matches = deviceId.match(/\\([A-F0-9-]{20,40})/i);
-    return matches ? matches[1] : deviceId.substring(deviceId.lastIndexOf('\\') + 1);
-  }
+  // extractUDID method removed - not used since scanning is disabled
 
-  private extractModel(name: string): string {
-    // User has iPhone 12 Pro - prioritize this detection
-    if (name.includes('iPhone 12 Pro')) return 'iPhone 12 Pro';
-    if (name.includes('iPhone 15')) return 'iPhone 15';
-    if (name.includes('iPhone 14')) return 'iPhone 14';
-    if (name.includes('iPhone 13')) return 'iPhone 13';
-    if (name.includes('iPhone 12')) return 'iPhone 12';
-    if (name.includes('iPhone 11')) return 'iPhone 11';
-    if (name.includes('iPhone X')) return 'iPhone X';
-    if (name.includes('iPad')) return 'iPad';
-    return 'iPhone';
-  }
+  // extractModel method removed - not used since scanning is disabled
 
-  private extractSerial(deviceId: string): string {
-    // Extract serial from device ID
-    const parts = deviceId.split('\\');
-    return parts[parts.length - 1] || 'Unknown';
-  }
+  // extractSerial method removed - not used since scanning is disabled
 
-  private cleanDeviceName(name: string): string {
-    // Clean up device name from Windows
-    return name
-      .replace(/Apple Mobile Device USB Driver/i, '')
-      .replace(/Apple iPhone/i, 'iPhone')
-      .replace(/\s+/g, ' ')
-      .trim() || 'iPhone';
-  }
+  // cleanDeviceName method removed - not used since scanning is disabled
 
   private async checkDeviceTrustStatus(udid: string): Promise<{ trusted: boolean; paired: boolean }> {
     try {

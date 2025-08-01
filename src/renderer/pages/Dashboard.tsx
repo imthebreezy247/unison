@@ -54,7 +54,7 @@ export const Dashboard: React.FC = () => {
 
       // Load recent activity without using problematic columns
       try {
-        const recentActivity = await window.unisonx?.db?.query(`
+        await window.unisonx?.db?.query(`
           SELECT 'sync' as type, datetime(created_at) as timestamp,
                  'Device sync completed' as description
           FROM sync_history
@@ -62,10 +62,7 @@ export const Dashboard: React.FC = () => {
           LIMIT 10
         `) || [];
 
-        // Set recent activity if component has this state
-        if (typeof setRecentActivity === 'function') {
-          setRecentActivity(recentActivity);
-        }
+        // Recent activity loaded (currently not used in component state)
       } catch (activityError) {
         console.warn('Could not load recent activity:', activityError);
       }

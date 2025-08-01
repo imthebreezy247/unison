@@ -196,7 +196,7 @@ export const FileManager: React.FC = () => {
       try {
         const transferRequest = {
           filename: file.name,
-          sourcePath: file.path || '',
+          sourcePath: (file as any).path || file.name,
           destinationPath: `./downloads/${file.name}`,
           transferType: 'import' as const,
           deviceId: state.activeDevice?.id,
