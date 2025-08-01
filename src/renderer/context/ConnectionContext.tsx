@@ -126,11 +126,11 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({ children
 
     initializeConnection();
 
-    // Set up periodic device scanning as fallback
-    const scanInterval = setInterval(scanForDevices, 30000); // Scan every 30 seconds as fallback
+    // DISABLE periodic device scanning to prevent flickering
+    // const scanInterval = setInterval(scanForDevices, 30000); // DISABLED
 
     return () => {
-      clearInterval(scanInterval);
+      // clearInterval(scanInterval); // DISABLED
       window.unisonx?.off('devices-updated', handleDevicesUpdated);
       window.unisonx?.off('device-connected', handleDeviceConnected);
       window.unisonx?.off('device-disconnected', handleDeviceDisconnected);

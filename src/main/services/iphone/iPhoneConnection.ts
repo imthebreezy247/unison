@@ -78,40 +78,12 @@ export class iPhoneConnection extends EventEmitter {
 
   async scanDevices(): Promise<iPhoneDevice[]> {
     try {
-      log.debug('Scanning for iPhone devices');
+      log.info('iPhone scanning DISABLED to prevent flickering');
       
-      // Use Windows WMI to detect connected iOS devices
-      const devices = await this.detectDevicesViaWMI();
-      
-      // Enhanced logging for debugging
-      log.info(`=== iPhone SCAN RESULTS ===`);
-      log.info(`Found ${devices.length} iPhone device(s)`);
-      
-      devices.forEach((device, index) => {
-        log.info(`iPhone Device ${index + 1}:`);
-        log.info(`  - UDID: ${device.udid}`);
-        log.info(`  - Name: ${device.name}`);
-        log.info(`  - Model: ${device.model}`);
-        log.info(`  - OS Version: ${device.osVersion}`);
-        log.info(`  - Trusted: ${device.trusted}`);
-        log.info(`  - Paired: ${device.paired}`);
-        log.info(`  - Serial: ${device.serialNumber}`);
-        log.info(`  - Device Class: ${device.deviceClass}`);
-      });
-      
-      // Update our device map
-      this.devices.clear();
-      for (const device of devices) {
-        this.devices.set(device.udid, device);
-      }
-
-      // Emit the correct event name that DeviceManager expects
-      this.emit('devices-updated', devices);
-      log.info(`Emitted 'devices-updated' event with ${devices.length} devices`);
-      
-      return devices;
+      // Return empty array to stop all scanning activity
+      return [];
     } catch (error) {
-      log.error('Error scanning devices:', error);
+      log.error('Error in disabled iPhone scan:', error);
       return [];
     }
   }

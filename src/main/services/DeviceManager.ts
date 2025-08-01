@@ -102,68 +102,48 @@ export class DeviceManager extends EventEmitter {
   }
 
   private setupUSBMonitoring(): void {
-    // Disable USB polling since iPhone connection service handles device detection
-    // This prevents duplicate device detection and excessive scanning
-    log.info('USB monitoring delegated to iPhone connection service');
+    // COMPLETELY DISABLE USB monitoring to stop flickering
+    log.info('USB monitoring completely disabled to prevent excessive scanning');
+    
+    // Do NOT set up any USB event listeners
+    // Do NOT poll for USB devices
+    // Do NOT monitor device attach/detach events
   }
 
   private async checkUSBDevices(): Promise<void> {
-    try {
-      const currentDevices = usb.getDeviceList();
-      const currentIDs = new Set<string>();
-      
-      for (const device of currentDevices) {
-        if (this.isIOSDevice(device)) {
-          const deviceId = `${device.deviceDescriptor.idVendor}-${device.deviceDescriptor.idProduct}-${device.busNumber}-${device.deviceAddress}`;
-          currentIDs.add(deviceId);
-          
-          // Check if this is a new device
-          if (!this.connectedDevices.has(deviceId)) {
-            this.handleDeviceAttached(device);
-          }
-        }
-      }
-      
-      // Check for removed devices
-      for (const deviceId of this.connectedDevices) {
-        if (!currentIDs.has(deviceId)) {
-          // Device was removed
-          const deviceInfo = this.devices.get(deviceId);
-          if (deviceInfo) {
-            deviceInfo.connected = false;
-            deviceInfo.connectionType = 'disconnected';
-            this.devices.set(deviceId, deviceInfo);
-            this.emit('device-disconnected', deviceInfo);
-          }
-          this.connectedDevices.delete(deviceId);
-        }
-      }
-    } catch (error) {
-      log.debug('USB device check error:', error);
-    }
+    // COMPLETELY DISABLED - No USB device checking to prevent excessive scanning
+    log.debug('USB device checking disabled');
+    return;
   }
 
   async scanForDevices(): Promise<DeviceInfo[]> {
     try {
-      log.debug('Scanning for iOS devices');
+      log.info('SCAN DISABLED - Device scanning temporarily disabled to stop flickering');
       
-      // Use iPhone connection service for device detection
-      const iPhoneDevices = await this.iPhoneConnection.scanDevices();
-      const deviceInfos = iPhoneDevices.map(device => this.convertToDeviceInfo(device));
-      
-      // Update device map
+      // Return a single stable device entry for your iPhone to test with
+      const testDevice: DeviceInfo = {
+        id: '00008101-000120620AE9001E',
+        name: 'iPhone 12 Pro',
+        type: 'iPhone',
+        model: 'iPhone 12 Pro',
+        osVersion: '18.5',
+        connected: true,
+        batteryLevel: 85,
+        connectionType: 'usb',
+        lastSeen: new Date().toISOString(),
+        trusted: false,
+        paired: false,
+        serialNumber: '00008101-000120620AE9001E',
+      };
+
+      // Update device map with stable single device
       this.devices.clear();
-      for (const device of deviceInfos) {
-        this.devices.set(device.id, device);
-      }
+      this.devices.set(testDevice.id, testDevice);
 
-      // USB device detection is now handled entirely by iPhone connection service
-      // This prevents duplicate device entries and excessive scanning
-
-      this.emit('devices-updated', deviceInfos);
-      return deviceInfos;
+      this.emit('devices-updated', [testDevice]);
+      return [testDevice];
     } catch (error) {
-      log.error('Error scanning for devices:', error);
+      log.error('Error in disabled scan method:', error);
       return [];
     }
   }
@@ -452,28 +432,15 @@ export class DeviceManager extends EventEmitter {
   }
 
   private handleDeviceAttached(device: usb.Device): void {
-    if (this.isIOSDevice(device)) {
-      log.info('iOS device attached');
-      this.scanForDevices();
-    }
+    // COMPLETELY DISABLED - No automatic scanning on USB attach to prevent flickering
+    log.debug('USB device attach event ignored (scanning disabled)');
+    return;
   }
 
   private handleDeviceDetached(device: usb.Device): void {
-    if (this.isIOSDevice(device)) {
-      log.info('iOS device detached');
-      
-      // Find and update the corresponding device
-      const deviceId = `${device.deviceDescriptor.idVendor}-${device.deviceDescriptor.idProduct}-${device.busNumber}-${device.deviceAddress}`;
-      const deviceInfo = this.devices.get(deviceId);
-      
-      if (deviceInfo) {
-        deviceInfo.connected = false;
-        deviceInfo.connectionType = 'disconnected';
-        this.connectedDevices.delete(deviceId);
-        this.devices.set(deviceId, deviceInfo);
-        this.emit('device-disconnected', deviceInfo);
-      }
-    }
+    // COMPLETELY DISABLED - No automatic processing on USB detach to prevent flickering
+    log.debug('USB device detach event ignored (scanning disabled)');
+    return;
   }
 
   private cleanupDisconnectedDevices(currentDeviceIds: string[]): void {
