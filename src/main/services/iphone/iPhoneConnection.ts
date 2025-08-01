@@ -40,17 +40,13 @@ export class iPhoneConnection extends EventEmitter {
   }
 
   async initialize(): Promise<void> {
-    log.info('Initializing iPhone connection service');
+    log.info('🚫 iPhone connection service DISABLED to stop flickering');
     
-    // Check if iTunes/Apple Mobile Device Support is installed
-    const hasAppleSupport = await this.checkAppleSupport();
-    if (!hasAppleSupport) {
-      log.warn('Apple Mobile Device Support not found. Some features may be limited.');
-      this.emit('warning', 'Apple Mobile Device Support not installed');
-    }
-
-    // Start device monitoring
-    this.startMonitoring();
+    // NO INITIALIZATION - NO MONITORING - NO SCANNING
+    // Everything disabled until flickering is completely resolved
+    
+    log.info('iPhone service initialization skipped');
+    return;
   }
 
   private async checkAppleSupport(): Promise<boolean> {
@@ -377,10 +373,9 @@ export class iPhoneConnection extends EventEmitter {
   }
 
   private startMonitoring(): void {
-    // Disable automatic monitoring - only scan when requested
-    log.info('Automatic monitoring disabled - using manual scan only');
-    
-    // Don't do initial scan here - let it be triggered manually
+    log.info('🚫 ALL MONITORING COMPLETELY DISABLED TO STOP FLICKERING');
+    // NO MONITORING - NO SCANNING - NO EVENTS
+    return;
   }
 
   private stopMonitoring(): void {

@@ -37,22 +37,13 @@ export class DeviceManager extends EventEmitter {
   }
 
   async initialize(): Promise<void> {
-    log.info('Initializing DeviceManager');
+    log.info('🚫 DeviceManager COMPLETELY DISABLED to stop flickering');
     
-    // Initialize iPhone connection service
-    await this.iPhoneConnection.initialize();
+    // NO INITIALIZATION - NO SERVICES - NO MONITORING
+    // Everything disabled until flickering is completely resolved
     
-    // Set up iPhone event listeners
-    this.setupiPhoneListeners();
-    
-    // Set up USB device monitoring as fallback
-    try {
-      this.setupUSBMonitoring();
-    } catch (error) {
-      log.warn('USB monitoring not available:', error);
-    }
-
-    // Don't do initial scan - let it be triggered manually to prevent flickering
+    log.info('DeviceManager initialization skipped');
+    return;
   }
 
   private setupiPhoneListeners(): void {

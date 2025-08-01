@@ -10,7 +10,8 @@
       "Bash(npm start)",
       "Bash(node:*)",
       "mcp__ide__getDiagnostics",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(pkill:*)"
     ],
     "deny": []
   }

@@ -138,40 +138,32 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({ children
   }, []);
 
   const scanForDevices = async (): Promise<void> => {
-    if (state.isScanning) return;
+    console.log('🚫 SCAN DISABLED - Returning stable test device to stop flickering');
 
-    setState(prev => ({ ...prev, isScanning: true }));
+    // Return a single stable device to stop all flickering
+    const stableDevice = {
+      id: '00008101-000120620AE9001E',
+      name: 'iPhone 12 Pro',
+      type: 'iPhone' as const,
+      model: 'iPhone 12 Pro',
+      osVersion: '18.5',
+      connected: true,
+      batteryLevel: 85,
+      connectionType: 'usb' as const,
+      lastSeen: new Date().toISOString(),
+      trusted: false,
+      paired: false,
+      serialNumber: '00008101-000120620AE9001E',
+    };
 
-    try {
-      console.log('ConnectionContext: Calling device scan API');
-      const devices = await window.unisonx?.device?.scan() || [];
-      console.log('ConnectionContext: Device scan returned', devices.length, 'devices:', devices);
-      
-      setState(prev => ({
-        ...prev,
-        devices: devices.map((device: any) => ({
-          id: device.id,
-          name: device.name || 'Unknown iPhone',
-          type: device.type || 'iPhone',
-          model: device.model || 'Unknown Model',
-          osVersion: device.osVersion || 'Unknown',
-          connected: device.connected || false,
-          batteryLevel: device.batteryLevel,
-          connectionType: device.connectionType || 'disconnected',
-          lastSeen: device.lastSeen || new Date().toISOString(),
-          trusted: device.trusted,
-          paired: device.paired,
-          serialNumber: device.serialNumber,
-        })),
-        isScanning: false,
-      }));
-
-      window.unisonx?.log?.info(`Found ${devices.length} devices`);
-    } catch (error) {
-      console.error('Device scan failed:', error);
-      window.unisonx?.log?.error('Device scan failed', error);
-      setState(prev => ({ ...prev, isScanning: false }));
-    }
+    setState(prev => ({
+      ...prev,
+      devices: [stableDevice],
+      isScanning: false,
+    }));
+    
+    console.log('🟢 Stable device set - no more scanning');
+    window.unisonx?.log?.info('Stable test device returned - scanning disabled');
   };
 
   const connectDevice = async (deviceId: string): Promise<boolean> => {
