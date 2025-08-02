@@ -42,18 +42,66 @@ export class iPhoneBackupParser {
     const messages: ParsedMessage[] = [];
     
     try {
-      // Path to SMS database (known hash for SMS.db)
-      const smsDbPath = path.join(this.backupPath, '3d0d7e5fb2ce288813306e4d4636395e047a3d28');
-      
-      if (!fs.existsSync(smsDbPath)) {
-        log.warn('SMS database not found at:', smsDbPath);
-        log.info('iTunes backup may not exist or may be encrypted');
-        
-        // Return sample messages for testing
+      if (!fs.existsSync(this.backupPath)) {
+        log.error(`Backup directory not found: ${this.backupPath}`);
         return this.generateSampleMessages();
       }
 
-      log.info('Found SMS database at:', smsDbPath);
+      // List all files in backup directory
+      const files = fs.readdirSync(this.backupPath);
+      log.info(`Found ${files.length} files in backup directory`);
+      
+      let smsDbPath = null;
+      
+      // Look for any file starting with '3d0d7e5fb2ce2888' (SMS database prefix)
+      for (const file of files) {
+        if (file.startsWith('3d0d7e5fb2ce2888')) {
+          const filePath = path.join(this.backupPath, file);
+          const stats = fs.statSync(filePath);
+          log.info(`Found potential SMS database: ${file} (${Math.round(stats.size / 1024 / 1024)} MB)`);
+          
+          // If it's a large file (>1MB), it's likely the SMS database
+          if (stats.size > 1000000) {
+            smsDbPath = filePath;
+            break;
+          }
+        }
+      }
+      
+      if (!smsDbPath) {
+        // Look for any large file that might be the SMS database
+        log.info('Exact SMS database not found, searching for large SQLite files...');
+        const largeFiles = files.filter(f => {
+          try {
+            const filePath = path.join(this.backupPath, f);
+            const stats = fs.statSync(filePath);
+            return stats.size > 10000000; // > 10MB
+          } catch {
+            return false;
+          }
+        });
+        
+        if (largeFiles.length > 0) {
+          // Sort by size and take largest
+          largeFiles.sort((a, b) => {
+            const sizeA = fs.statSync(path.join(this.backupPath, a)).size;
+            const sizeB = fs.statSync(path.join(this.backupPath, b)).size;
+            return sizeB - sizeA;
+          });
+          
+          smsDbPath = path.join(this.backupPath, largeFiles[0]);
+          log.info(`Using largest file as potential SMS database: ${largeFiles[0]}`);
+        }
+      }
+      
+      if (!smsDbPath || !fs.existsSync(smsDbPath)) {
+        log.error('SMS database not found in backup');
+        log.info('Available files starting with 3d:', files.filter(f => f.startsWith('3d')).slice(0, 5));
+        log.info('Generating sample messages for testing');
+        return this.generateSampleMessages();
+      }
+
+      log.info(`Opening SMS database at: ${smsDbPath}`);
       
       try {
         // Try to use better-sqlite3 if available
@@ -68,27 +116,28 @@ export class iPhoneBackupParser {
             message.text as content,
             message.service,
             CASE WHEN message.is_from_me = 1 THEN 'outgoing' ELSE 'incoming' END as direction,
-            datetime(message.date/1000000000 + 978307200, 'unixepoch') as timestamp,
+            datetime(message.date/1000000000 + 978307200, 'unixepoch', 'localtime') as timestamp,
             handle.id as phone_number,
             handle.service as handle_service,
-            message.cache_has_attachments,
-            message.is_read
+            chat.chat_identifier,
+            chat.display_name as chat_name
           FROM message
           LEFT JOIN handle ON message.handle_id = handle.ROWID
+          LEFT JOIN chat_message_join ON message.ROWID = chat_message_join.message_id
+          LEFT JOIN chat ON chat_message_join.chat_id = chat.ROWID
           WHERE message.text IS NOT NULL AND message.text != ''
           ORDER BY message.date DESC
-          LIMIT 1000
+          LIMIT 2000
         `;
         
         const rows = this.smsDb.prepare(query).all();
-        
         log.info(`Found ${rows.length} messages in backup database`);
         
-        // Process each message
+        // Group messages by conversation
         for (const row of rows) {
           try {
-            const phoneNumber = this.normalizePhoneNumber(row.phone_number || 'Unknown');
-            const threadId = `thread-${this.hashPhoneNumber(phoneNumber)}`;
+            const phoneNumber = this.normalizePhoneNumber(row.phone_number || row.chat_identifier || 'Unknown');
+            const threadId = `thread-${phoneNumber.replace(/[^a-zA-Z0-9]/g, '')}`;
             
             messages.push({
               id: `msg-backup-${row.id}`,
@@ -99,7 +148,7 @@ export class iPhoneBackupParser {
               direction: row.direction,
               timestamp: new Date(row.timestamp),
               contactId: undefined,
-              attachments: row.cache_has_attachments ? [] : undefined
+              attachments: []
             });
           } catch (error) {
             log.error('Error processing message row:', error);
@@ -110,7 +159,7 @@ export class iPhoneBackupParser {
         
       } catch (dbError) {
         log.error('Database error:', dbError);
-        log.info('Falling back to sample messages');
+        log.info('Database may be corrupted or encrypted. Falling back to sample messages');
         return this.generateSampleMessages();
       } finally {
         if (this.smsDb) {

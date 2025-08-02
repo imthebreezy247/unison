@@ -161,34 +161,31 @@ export class MessageSyncService {
       return; // Skip duplicates
     }
 
-    // Create or update thread
+    // Create or update thread first (without contact_id to avoid foreign key issues)
     await this.createOrUpdateThread(threadId, parsedMessage);
 
-    // Insert message with only primitive types
+    // Insert message without contact_id to avoid foreign key constraint failures
     await this.databaseManager.run(`
       INSERT INTO messages (
-        id, thread_id, contact_id, phone_number, content, message_type, 
+        id, thread_id, phone_number, content, message_type, 
         direction, timestamp, read_status, delivered_status, failed_status,
-        attachments, group_info, archived
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        archived
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       String(messageId),
       String(threadId),
-      parsedMessage.contactId ? String(parsedMessage.contactId) : null,
       String(parsedMessage.phoneNumber),
       String(parsedMessage.content),
       String(parsedMessage.messageType),
       String(parsedMessage.direction),
       parsedMessage.timestamp instanceof Date ? parsedMessage.timestamp.toISOString() : String(parsedMessage.timestamp),
-      1, // SQLite boolean as integer
-      parsedMessage.direction === 'outgoing' ? 1 : 0, // SQLite boolean as integer
-      0, // SQLite boolean as integer
-      JSON.stringify(parsedMessage.attachments || []),
-      JSON.stringify(parsedMessage.groupInfo || null),
-      0 // SQLite boolean as integer
+      1, // read_status
+      parsedMessage.direction === 'outgoing' ? 1 : 0, // delivered_status
+      0, // failed_status
+      0  // archived
     ]);
 
-    // Process attachments
+    // Process attachments if any
     if (parsedMessage.attachments && parsedMessage.attachments.length > 0) {
       await this.processMessageAttachments(messageId, parsedMessage.attachments);
     }
@@ -204,21 +201,24 @@ export class MessageSyncService {
     );
 
     if (existingThread.length === 0) {
-      // Create new thread with only primitive types
+      // Create new thread without contact_id to avoid foreign key issues
       await this.databaseManager.run(`
         INSERT INTO message_threads (
-          id, contact_id, phone_number, last_message_timestamp, 
-          unread_count, is_group, group_name, group_participants
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          id, phone_number, last_message_timestamp, 
+          unread_count, is_group, group_name, group_participants,
+          archived, pinned, muted
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
         String(threadId),
-        parsedMessage.contactId ? String(parsedMessage.contactId) : null,
         String(parsedMessage.phoneNumber),
         parsedMessage.timestamp instanceof Date ? parsedMessage.timestamp.toISOString() : String(parsedMessage.timestamp),
         0, // Will be calculated later
         parsedMessage.isGroup ? 1 : 0, // SQLite boolean as integer
         parsedMessage.groupInfo?.name ? String(parsedMessage.groupInfo.name) : null,
-        JSON.stringify(parsedMessage.groupInfo?.participants || [])
+        JSON.stringify(parsedMessage.groupInfo?.participants || []),
+        0, // archived
+        0, // pinned  
+        0  // muted
       ]);
     }
   }
@@ -625,13 +625,13 @@ export class MessageSyncService {
       UPDATE message_threads 
       SET archived = ? 
       WHERE id = ?
-    `, [archived, threadId]);
+    `, [archived ? 1 : 0, threadId]); // Convert boolean to integer
 
     await this.databaseManager.run(`
       UPDATE messages 
       SET archived = ? 
       WHERE thread_id = ?
-    `, [archived, threadId]);
+    `, [archived ? 1 : 0, threadId]); // Convert boolean to integer
 
     log.info(`Thread ${threadId} ${archived ? 'archived' : 'unarchived'}`);
   }

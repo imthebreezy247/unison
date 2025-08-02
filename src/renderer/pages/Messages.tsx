@@ -246,25 +246,110 @@ export const Messages: React.FC = () => {
   };
 
   const handleNewMessage = () => {
-    // For now, create a new thread with a phone number
-    const phoneNumber = prompt('Enter phone number to message:');
-    if (!phoneNumber) return;
+    // Create a simple input dialog without using prompt()
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+      position: fixed; 
+      top: 0; 
+      left: 0; 
+      right: 0; 
+      bottom: 0; 
+      background: rgba(0,0,0,0.5); 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      z-index: 9999;
+    `;
     
-    const newThread: MessageThread = {
-      id: `thread-new-${Date.now()}`,
-      phone_number: phoneNumber,
-      contact_name: phoneNumber,
-      last_message_content: '',
-      last_message_timestamp: new Date().toISOString(),
-      unread_count: 0,
-      is_group: false,
-      archived: false,
-      pinned: false,
-      muted: false
+    modal.innerHTML = `
+      <div style="
+        background: white; 
+        padding: 24px; 
+        border-radius: 8px; 
+        min-width: 320px; 
+        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+      ">
+        <h3 style="margin: 0 0 16px 0; color: #1f2937; font-size: 18px; font-weight: 600;">New Message</h3>
+        <input 
+          id="phone-input" 
+          type="tel" 
+          placeholder="Enter phone number (e.g., +1234567890)" 
+          style="
+            width: 100%; 
+            padding: 12px; 
+            margin: 12px 0; 
+            border: 1px solid #d1d5db; 
+            border-radius: 6px; 
+            font-size: 14px;
+            box-sizing: border-box;
+          "
+        >
+        <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px;">
+          <button 
+            onclick="window.cancelNewMessage()" 
+            style="
+              padding: 8px 16px; 
+              border: 1px solid #d1d5db; 
+              background: white; 
+              border-radius: 6px; 
+              cursor: pointer;
+            "
+          >Cancel</button>
+          <button 
+            onclick="window.confirmNewMessage()" 
+            style="
+              background: #3b82f6; 
+              color: white; 
+              border: none; 
+              padding: 8px 16px; 
+              border-radius: 6px; 
+              cursor: pointer;
+            "
+          >Create</button>
+        </div>
+      </div>
+    `;
+    
+    (window as any).confirmNewMessage = () => {
+      const input = document.getElementById('phone-input') as HTMLInputElement;
+      const phoneNumber = input?.value?.trim();
+      
+      if (phoneNumber) {
+        const newThread: MessageThread = {
+          id: `thread-new-${Date.now()}`,
+          phone_number: phoneNumber,
+          contact_name: phoneNumber,
+          last_message_content: '',
+          last_message_timestamp: new Date().toISOString(),
+          unread_count: 0,
+          is_group: false,
+          archived: false,
+          pinned: false,
+          muted: false
+        };
+        
+        setThreads([newThread, ...threads]);
+        setSelectedThread(newThread);
+      }
+      
+      document.body.removeChild(modal);
+      delete (window as any).confirmNewMessage;
+      delete (window as any).cancelNewMessage;
     };
     
-    setThreads([newThread, ...threads]);
-    setSelectedThread(newThread);
+    (window as any).cancelNewMessage = () => {
+      document.body.removeChild(modal);
+      delete (window as any).confirmNewMessage;
+      delete (window as any).cancelNewMessage;
+    };
+    
+    document.body.appendChild(modal);
+    
+    // Focus the input after a brief delay
+    setTimeout(() => {
+      const input = document.getElementById('phone-input') as HTMLInputElement;
+      input?.focus();
+    }, 100);
   };
 
   const handleArchiveThread = async () => {
