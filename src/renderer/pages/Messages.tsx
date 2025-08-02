@@ -148,6 +148,29 @@ export const Messages: React.FC = () => {
     }
   };
 
+  const handleImportBackup = async () => {
+    try {
+      setLoading(true);
+      window.unisonx?.log?.info('Starting iTunes backup import...');
+      
+      const result = await window.unisonx?.messages?.importBackup();
+      if (result?.success) {
+        await loadThreads();
+        window.unisonx?.log?.info(`Backup import completed: ${result.messagesImported} messages`);
+        alert(`Successfully imported ${result.messagesImported} messages from iTunes backup!\n\nThreads created: ${result.threadsCreated}`);
+      } else {
+        const errorMsg = result?.errors?.join('\n') || 'Unknown error';
+        alert(`Backup import failed:\n${errorMsg}\n\nMake sure you have created an unencrypted iTunes backup.`);
+      }
+    } catch (error) {
+      console.error('Import failed:', error);
+      window.unisonx?.log?.error('Backup import failed', error);
+      alert('Failed to import messages from backup.\n\nPlease ensure:\n1. iTunes backup exists\n2. Backup is NOT encrypted\n3. Backup contains message data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSendMessage = async () => {
     if (!selectedThread || !newMessage.trim() || sending) {
       return;
@@ -220,6 +243,28 @@ export const Messages: React.FC = () => {
       console.error('Failed to export messages:', error);
       alert('Failed to export messages');
     }
+  };
+
+  const handleNewMessage = () => {
+    // For now, create a new thread with a phone number
+    const phoneNumber = prompt('Enter phone number to message:');
+    if (!phoneNumber) return;
+    
+    const newThread: MessageThread = {
+      id: `thread-new-${Date.now()}`,
+      phone_number: phoneNumber,
+      contact_name: phoneNumber,
+      last_message_content: '',
+      last_message_timestamp: new Date().toISOString(),
+      unread_count: 0,
+      is_group: false,
+      archived: false,
+      pinned: false,
+      muted: false
+    };
+    
+    setThreads([newThread, ...threads]);
+    setSelectedThread(newThread);
   };
 
   const handleArchiveThread = async () => {
@@ -308,8 +353,15 @@ export const Messages: React.FC = () => {
               >
                 <RefreshCw size={18} className={syncing ? 'animate-spin' : ''} />
               </button>
+              <button
+                onClick={handleImportBackup}
+                className="p-2 text-gray-500 hover:text-green-600 transition-colors"
+                title="Import from iTunes backup"
+              >
+                <Download size={18} />
+              </button>
               <button 
-                onClick={() => alert('New message feature coming soon!\n\nFor now, click on an existing conversation to test sending messages.')}
+                onClick={handleNewMessage}
                 className="p-2 text-gray-500 hover:text-blue-600 transition-colors"
                 title="New message"
               >

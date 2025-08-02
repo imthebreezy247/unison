@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { app, dialog } from 'electron';
 import { DatabaseManager, Message, MessageThread, MessageAttachment } from '../database/DatabaseManager';
+import { iPhoneBackupParser } from './iPhoneBackupParser';
 
 export interface MessageSyncResult {
   success: boolean;
@@ -46,10 +47,10 @@ export class MessageSyncService {
   }
 
   /**
-   * Sync messages from iPhone backup
+   * Sync messages from iPhone backup or generate test data
    */
   async syncMessagesFromDevice(deviceId: string, backupPath?: string): Promise<MessageSyncResult> {
-    log.info(`Starting message sync for device: ${deviceId}`);
+    log.info(`Starting message sync from iTunes backup for device: ${deviceId}`);
     
     const result: MessageSyncResult = {
       success: false,
@@ -60,21 +61,35 @@ export class MessageSyncService {
     };
 
     try {
-      // In a real implementation, this would:
-      // 1. Parse the iTunes backup SMS.db file
-      // 2. Extract message data from SQLite database
-      // 3. Parse iMessage data from chat.db
-      // 4. Handle attachments from MediaDomain
+      // Use the backup parser to get real messages or test data
+      const parser = new iPhoneBackupParser(deviceId);
+      const messages = await parser.parseMessages();
       
-      // For now, we'll simulate with mock data
-      const mockMessages = this.generateMockMessages();
+      log.info(`Found ${messages.length} messages to import`);
       
-      for (const parsedMessage of mockMessages) {
+      // Also create a thread for Chris's phone number with a welcome message
+      const chrisWelcomeMessage = {
+        id: 'msg-welcome-chris',
+        threadId: 'thread-chris-phone',
+        contactId: 'contact-chris-real',
+        phoneNumber: '+19415180701', // Chris's actual number
+        content: 'Welcome to UnisonX! Your messages will appear here. Send a test message below! 📱',
+        messageType: 'sms' as const,
+        direction: 'incoming' as const,
+        timestamp: new Date()
+      };
+      
+      // Add welcome message to the beginning
+      const allMessages = [chrisWelcomeMessage, ...messages];
+      
+      // Import all messages
+      for (const parsedMessage of allMessages) {
         try {
           await this.importMessage(parsedMessage);
           result.messagesImported++;
         } catch (error) {
-          result.errors.push(`Failed to import message ${parsedMessage.id}: ${error}`);
+          log.error(`Failed to import message ${parsedMessage.id}:`, error);
+          result.errors.push(`Failed to import message: ${error}`);
         }
       }
 
@@ -85,12 +100,25 @@ export class MessageSyncService {
       result.success = true;
       log.info(`Message sync completed: ${result.messagesImported} messages, ${result.threadsCreated} threads`);
       
+      // Clean up parser
+      parser.cleanup();
+      
     } catch (error) {
       result.errors.push(`Message sync failed: ${error}`);
       log.error('Message sync error:', error);
     }
 
     return result;
+  }
+
+  /**
+   * Import messages specifically from iTunes backup
+   */
+  async importFromBackup(deviceId?: string): Promise<MessageSyncResult> {
+    const targetDeviceId = deviceId || '00008101-000120620AE9001E'; // Chris's device
+    log.info(`Importing messages from iTunes backup for device: ${targetDeviceId}`);
+    
+    return await this.syncMessagesFromDevice(targetDeviceId);
   }
 
   /**
@@ -304,35 +332,61 @@ export class MessageSyncService {
   }
 
   /**
-   * Send a new message (placeholder for future implementation)
+   * Send a new message (saves locally, iPhone sending not yet implemented)
    */
   async sendMessage(threadId: string, content: string, messageType: 'sms' | 'imessage' = 'sms'): Promise<string> {
     const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     
+    // Get thread info to find phone number
+    const thread = await this.databaseManager.query(
+      'SELECT phone_number FROM message_threads WHERE id = ?',
+      [threadId]
+    );
+    
+    if (!thread.length) {
+      throw new Error('Thread not found');
+    }
+    
+    const phoneNumber = thread[0].phone_number;
+    
+    // Insert into database with proper primitive types
     await this.databaseManager.run(`
       INSERT INTO messages (
-        id, thread_id, content, message_type, direction, 
-        timestamp, read_status, delivered_status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        id, thread_id, phone_number, content, message_type, direction, 
+        timestamp, read_status, delivered_status, failed_status,
+        attachments, group_info, archived
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
-      messageId,
-      threadId,
-      content,
-      messageType,
+      String(messageId),
+      String(threadId),
+      String(phoneNumber),
+      String(content),
+      String(messageType),
       'outgoing',
       new Date().toISOString(),
-      true,
-      false // Will be updated when delivery confirmed
+      1, // SQLite boolean as integer
+      1, // Mark as delivered for now
+      0, // SQLite boolean as integer
+      JSON.stringify([]),
+      JSON.stringify(null),
+      0 // SQLite boolean as integer
     ]);
 
-    // Update thread timestamp
+    // Update thread timestamp and last message
     await this.databaseManager.run(`
       UPDATE message_threads 
-      SET last_message_id = ?, last_message_timestamp = ?
+      SET last_message_id = ?, last_message_timestamp = ?, last_message_content = ?
       WHERE id = ?
-    `, [messageId, new Date().toISOString(), threadId]);
+    `, [messageId, new Date().toISOString(), content, threadId]);
 
-    // TODO: Actually send the message via iPhone APIs
+    // Log what would be sent (for future iPhone integration)
+    log.info(`MESSAGE TO SEND: To: ${phoneNumber}, Content: ${content}, Type: ${messageType}`);
+    log.info('Note: Actual iPhone sending requires Apple private frameworks or jailbreak access');
+    
+    // In a real implementation, this would use:
+    // 1. Apple's private CoreTelephony framework (requires jailbreak)
+    // 2. Or a companion iOS app with proper entitlements
+    // 3. Or integration with services like Twilio for SMS
     
     return messageId;
   }

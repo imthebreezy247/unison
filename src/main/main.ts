@@ -584,6 +584,17 @@ class UnisonXApp {
       }
     });
 
+    ipcMain.handle('messages:import-backup', async (event, deviceId?: string) => {
+      try {
+        log.info('Starting iTunes backup import');
+        const result = await this.messageSyncService.importFromBackup(deviceId);
+        return result;
+      } catch (error) {
+        log.error('Backup import failed:', error);
+        throw error;
+      }
+    });
+
     // Call log operations
     ipcMain.handle('calls:sync', async (event, deviceId: string, backupPath?: string) => {
       try {
