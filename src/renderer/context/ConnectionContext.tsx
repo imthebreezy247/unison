@@ -73,24 +73,37 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({ children
       lastUpdateTime.current = now;
       
       console.log('ConnectionContext: Received devices-updated event with', devices.length, 'devices');
+      
+      const mappedDevices = devices.map((device: any) => ({
+        id: device.id,
+        name: device.name || 'Unknown iPhone',
+        type: device.type || 'iPhone',
+        model: device.model || 'Unknown Model',
+        osVersion: device.osVersion || 'Unknown',
+        connected: device.connected || false,
+        batteryLevel: device.batteryLevel,
+        connectionType: device.connectionType || 'disconnected',
+        lastSeen: device.lastSeen || new Date().toISOString(),
+        trusted: device.trusted,
+        paired: device.paired,
+        serialNumber: device.serialNumber,
+      }));
+      
+      // Find the first connected device (Chris's iPhone)
+      const connectedDevice = mappedDevices.find(d => d.connected);
+      
       setState(prev => ({
         ...prev,
-        devices: devices.map((device: any) => ({
-          id: device.id,
-          name: device.name || 'Unknown iPhone',
-          type: device.type || 'iPhone',
-          model: device.model || 'Unknown Model',
-          osVersion: device.osVersion || 'Unknown',
-          connected: device.connected || false,
-          batteryLevel: device.batteryLevel,
-          connectionType: device.connectionType || 'disconnected',
-          lastSeen: device.lastSeen || new Date().toISOString(),
-          trusted: device.trusted,
-          paired: device.paired,
-          serialNumber: device.serialNumber,
-        })),
+        devices: mappedDevices,
+        activeDevice: connectedDevice || prev.activeDevice, // Update active device if connected
         isScanning: false,
       }));
+      
+      if (connectedDevice) {
+        console.log(`ConnectionContext: Real-time update - Set active device to ${connectedDevice.name}`);
+        window.unisonx?.log?.info(`Real-time active device set: ${connectedDevice.name}`);
+      }
+      
       window.unisonx?.log?.info(`Real-time update: Found ${devices.length} devices`);
     };
 
@@ -158,24 +171,37 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({ children
       
       if (devices && devices.length > 0) {
         console.log(`ConnectionContext: Found ${devices.length} device(s)`);
+        
+        const mappedDevices = devices.map((device: any) => ({
+          id: device.id,
+          name: device.name || 'Unknown iPhone',
+          type: device.type || 'iPhone',
+          model: device.model || 'Unknown Model',
+          osVersion: device.osVersion || 'Unknown',
+          connected: device.connected || false,
+          batteryLevel: device.batteryLevel,
+          connectionType: device.connectionType || 'disconnected',
+          lastSeen: device.lastSeen || new Date().toISOString(),
+          trusted: device.trusted,
+          paired: device.paired,
+          serialNumber: device.serialNumber,
+        }));
+        
+        // Find the first connected device (Chris's iPhone)
+        const connectedDevice = mappedDevices.find(d => d.connected);
+        
         setState(prev => ({
           ...prev,
-          devices: devices.map((device: any) => ({
-            id: device.id,
-            name: device.name || 'Unknown iPhone',
-            type: device.type || 'iPhone',
-            model: device.model || 'Unknown Model',
-            osVersion: device.osVersion || 'Unknown',
-            connected: device.connected || false,
-            batteryLevel: device.batteryLevel,
-            connectionType: device.connectionType || 'disconnected',
-            lastSeen: device.lastSeen || new Date().toISOString(),
-            trusted: device.trusted,
-            paired: device.paired,
-            serialNumber: device.serialNumber,
-          })),
+          devices: mappedDevices,
+          activeDevice: connectedDevice || prev.activeDevice, // Set active device if connected
           isScanning: false,
         }));
+        
+        if (connectedDevice) {
+          console.log(`ConnectionContext: Set active device to ${connectedDevice.name}`);
+          window.unisonx?.log?.info(`Active device set: ${connectedDevice.name}`);
+        }
+        
         window.unisonx?.log?.info(`Scan complete: Found ${devices.length} devices`);
       } else {
         console.log('ConnectionContext: No devices found');
