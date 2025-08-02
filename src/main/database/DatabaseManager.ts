@@ -347,7 +347,8 @@ export class DatabaseManager {
     try {
       this.db = new Database(this.dbPath);
       this.db.pragma('journal_mode = WAL');
-      this.db.pragma('foreign_keys = ON');
+      // DISABLED foreign keys to fix message import issues
+      this.db.pragma('foreign_keys = OFF');
       
       await this.createTables();
       await this.runMigrations();

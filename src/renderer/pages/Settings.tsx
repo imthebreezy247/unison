@@ -202,9 +202,19 @@ export const Settings: React.FC = () => {
     }
   };
 
+  const { setTheme } = useTheme();
+  
   const setActiveTheme = async (themeId: string) => {
     try {
       console.log(`Setting active theme: ${themeId}`);
+      
+      // Extract the actual theme name from the ID (e.g., "theme-dark" -> "dark")
+      const themeName = themeId.replace('theme-', '') as 'light' | 'dark' | 'system';
+      
+      // Set the theme using the ThemeContext
+      setTheme(themeName);
+      
+      // Update the local state
       setThemes(prev => prev.map(theme => ({
         ...theme,
         is_active: theme.id === themeId
