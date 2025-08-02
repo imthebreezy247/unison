@@ -151,7 +151,7 @@ export class MessageSyncService {
       parsedMessage.content,
       parsedMessage.messageType,
       parsedMessage.direction,
-      parsedMessage.timestamp.toISOString(),
+      parsedMessage.timestamp instanceof Date ? parsedMessage.timestamp.toISOString() : parsedMessage.timestamp,
       true, // Mark imported messages as read
       parsedMessage.direction === 'outgoing',
       false,
@@ -186,7 +186,7 @@ export class MessageSyncService {
         threadId,
         parsedMessage.contactId || null,
         parsedMessage.phoneNumber,
-        parsedMessage.timestamp.toISOString(),
+        parsedMessage.timestamp instanceof Date ? parsedMessage.timestamp.toISOString() : parsedMessage.timestamp,
         0, // Will be calculated later
         parsedMessage.isGroup || false,
         parsedMessage.groupInfo?.name || null,
@@ -378,7 +378,7 @@ export class MessageSyncService {
    */
   private generateMockMessages(): ParsedMessage[] {
     const mockContacts = [
-      { id: 'contact-1', phone: '+1234567890', name: 'John Doe' },
+      { id: 'contact-1', phone: '+19415180701', name: 'Chris (Test)' },
       { id: 'contact-2', phone: '+1234567891', name: 'Jane Smith' },
       { id: 'contact-3', phone: '+1234567892', name: 'Mike Johnson' }
     ];
@@ -389,8 +389,8 @@ export class MessageSyncService {
     mockContacts.forEach((contact, contactIndex) => {
       const threadId = `thread-${contact.id}`;
       
-      // Generate 10-20 messages per contact
-      const messageCount = 10 + Math.floor(Math.random() * 10);
+      // Generate fewer messages to reduce database load
+      const messageCount = 3 + Math.floor(Math.random() * 3); // 3-5 messages per contact
       
       for (let i = 0; i < messageCount; i++) {
         const messageId = `msg-${contact.id}-${i}`;
