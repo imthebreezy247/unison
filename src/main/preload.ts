@@ -59,6 +59,7 @@ interface UnisonXAPI {
     export: (threadId?: string, format?: 'json' | 'csv' | 'txt') => Promise<any>;
     archiveThread: (threadId: string, archived?: boolean) => Promise<boolean>;
     importBackup: (deviceId?: string) => Promise<any>;
+    createThread: (phoneNumber: string) => Promise<any>;
   };
 
   // Call log operations
@@ -209,6 +210,7 @@ const api: UnisonXAPI = {
     export: (threadId?: string, format?: 'json' | 'csv' | 'txt') => ipcRenderer.invoke('messages:export', threadId, format),
     archiveThread: (threadId: string, archived?: boolean) => ipcRenderer.invoke('messages:archive-thread', threadId, archived),
     importBackup: (deviceId?: string) => ipcRenderer.invoke('messages:import-backup', deviceId),
+    createThread: (phoneNumber: string) => ipcRenderer.invoke('messages:create-thread', phoneNumber),
   },
 
   // Call log operations

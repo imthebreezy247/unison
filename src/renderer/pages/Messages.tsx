@@ -310,26 +310,29 @@ export const Messages: React.FC = () => {
       </div>
     `;
     
-    (window as any).confirmNewMessage = () => {
+    (window as any).confirmNewMessage = async () => {
       const input = document.getElementById('phone-input') as HTMLInputElement;
       const phoneNumber = input?.value?.trim();
       
       if (phoneNumber) {
-        const newThread: MessageThread = {
-          id: `thread-new-${Date.now()}`,
-          phone_number: phoneNumber,
-          contact_name: phoneNumber,
-          last_message_content: '',
-          last_message_timestamp: new Date().toISOString(),
-          unread_count: 0,
-          is_group: false,
-          archived: false,
-          pinned: false,
-          muted: false
-        };
-        
-        setThreads([newThread, ...threads]);
-        setSelectedThread(newThread);
+        try {
+          // Create thread in database
+          const newThread = await window.unisonx?.messages?.createThread(phoneNumber);
+          
+          if (newThread) {
+            // Update UI state
+            setThreads([newThread, ...threads]);
+            setSelectedThread(newThread);
+            
+            // Reload threads to ensure sync
+            setTimeout(async () => {
+              await loadThreads();
+            }, 100);
+          }
+        } catch (error) {
+          console.error('Failed to create thread:', error);
+          alert('Failed to create new conversation. Please try again.');
+        }
       }
       
       document.body.removeChild(modal);

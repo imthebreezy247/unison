@@ -595,6 +595,46 @@ class UnisonXApp {
       }
     });
 
+    ipcMain.handle('messages:create-thread', async (event, phoneNumber: string) => {
+      try {
+        log.info(`Creating new thread for: ${phoneNumber}`);
+        const threadId = `thread-${phoneNumber.replace(/[^a-zA-Z0-9]/g, '')}-${Date.now()}`;
+        
+        // Create thread in database
+        await this.databaseManager.run(`
+          INSERT INTO message_threads (
+            id, phone_number, last_message_timestamp, 
+            unread_count, is_group, archived, pinned, muted
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+          threadId,
+          phoneNumber,
+          new Date().toISOString(),
+          0, // unread_count
+          0, // is_group
+          0, // archived
+          0, // pinned  
+          0  // muted
+        ]);
+        
+        return {
+          id: threadId,
+          phone_number: phoneNumber,
+          contact_name: phoneNumber,
+          last_message_content: '',
+          last_message_timestamp: new Date().toISOString(),
+          unread_count: 0,
+          is_group: false,
+          archived: false,
+          pinned: false,
+          muted: false
+        };
+      } catch (error) {
+        log.error('Create thread failed:', error);
+        throw error;
+      }
+    });
+
     // Call log operations
     ipcMain.handle('calls:sync', async (event, deviceId: string, backupPath?: string) => {
       try {
