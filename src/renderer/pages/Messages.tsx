@@ -308,7 +308,11 @@ export const Messages: React.FC = () => {
               >
                 <RefreshCw size={18} className={syncing ? 'animate-spin' : ''} />
               </button>
-              <button className="p-2 text-gray-500 hover:text-blue-600 transition-colors">
+              <button 
+                onClick={() => alert('New message feature coming soon!\n\nFor now, click on an existing conversation to test sending messages.')}
+                className="p-2 text-gray-500 hover:text-blue-600 transition-colors"
+                title="New message"
+              >
                 <Plus size={18} />
               </button>
             </div>

@@ -136,7 +136,7 @@ export class MessageSyncService {
     // Create or update thread
     await this.createOrUpdateThread(threadId, parsedMessage);
 
-    // Insert message
+    // Insert message with only primitive types
     await this.databaseManager.run(`
       INSERT INTO messages (
         id, thread_id, contact_id, phone_number, content, message_type, 
@@ -144,20 +144,20 @@ export class MessageSyncService {
         attachments, group_info, archived
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
-      messageId,
-      threadId,
-      parsedMessage.contactId || null,
-      parsedMessage.phoneNumber,
-      parsedMessage.content,
-      parsedMessage.messageType,
-      parsedMessage.direction,
-      parsedMessage.timestamp instanceof Date ? parsedMessage.timestamp.toISOString() : parsedMessage.timestamp,
-      true, // Mark imported messages as read
-      parsedMessage.direction === 'outgoing',
-      false,
+      String(messageId),
+      String(threadId),
+      parsedMessage.contactId ? String(parsedMessage.contactId) : null,
+      String(parsedMessage.phoneNumber),
+      String(parsedMessage.content),
+      String(parsedMessage.messageType),
+      String(parsedMessage.direction),
+      parsedMessage.timestamp instanceof Date ? parsedMessage.timestamp.toISOString() : String(parsedMessage.timestamp),
+      1, // SQLite boolean as integer
+      parsedMessage.direction === 'outgoing' ? 1 : 0, // SQLite boolean as integer
+      0, // SQLite boolean as integer
       JSON.stringify(parsedMessage.attachments || []),
       JSON.stringify(parsedMessage.groupInfo || null),
-      false
+      0 // SQLite boolean as integer
     ]);
 
     // Process attachments
@@ -176,20 +176,20 @@ export class MessageSyncService {
     );
 
     if (existingThread.length === 0) {
-      // Create new thread
+      // Create new thread with only primitive types
       await this.databaseManager.run(`
         INSERT INTO message_threads (
           id, contact_id, phone_number, last_message_timestamp, 
           unread_count, is_group, group_name, group_participants
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `, [
-        threadId,
-        parsedMessage.contactId || null,
-        parsedMessage.phoneNumber,
-        parsedMessage.timestamp instanceof Date ? parsedMessage.timestamp.toISOString() : parsedMessage.timestamp,
+        String(threadId),
+        parsedMessage.contactId ? String(parsedMessage.contactId) : null,
+        String(parsedMessage.phoneNumber),
+        parsedMessage.timestamp instanceof Date ? parsedMessage.timestamp.toISOString() : String(parsedMessage.timestamp),
         0, // Will be calculated later
-        parsedMessage.isGroup || false,
-        parsedMessage.groupInfo?.name || null,
+        parsedMessage.isGroup ? 1 : 0, // SQLite boolean as integer
+        parsedMessage.groupInfo?.name ? String(parsedMessage.groupInfo.name) : null,
         JSON.stringify(parsedMessage.groupInfo?.participants || [])
       ]);
     }
@@ -377,43 +377,38 @@ export class MessageSyncService {
    * Generate mock messages for testing
    */
   private generateMockMessages(): ParsedMessage[] {
-    const mockContacts = [
-      { id: 'contact-1', phone: '+19415180701', name: 'Chris (Test)' },
-      { id: 'contact-2', phone: '+1234567891', name: 'Jane Smith' },
-      { id: 'contact-3', phone: '+1234567892', name: 'Mike Johnson' }
-    ];
-
     const messages: ParsedMessage[] = [];
     const now = new Date();
 
-    mockContacts.forEach((contact, contactIndex) => {
-      const threadId = `thread-${contact.id}`;
+    // Create a simple test conversation with Chris
+    const threadId = 'thread-chris-test';
+    const contactId = 'contact-chris';
+    const phoneNumber = '+19415180701';
+    
+    // Create exactly 5 simple messages
+    const testMessages = [
+      { content: 'Hey! Testing UnisonX app', isIncoming: true },
+      { content: 'This is a test message from my iPhone', isIncoming: true },
+      { content: 'Great! I can see your message', isIncoming: false },
+      { content: 'Perfect! The app is working', isIncoming: false },
+      { content: 'Ready to send more texts!', isIncoming: true }
+    ];
+
+    testMessages.forEach((msg, i) => {
+      const messageId = `msg-test-${i + 1}`;
+      const timestamp = new Date(now.getTime() - (testMessages.length - i) * 300000); // 5 minutes apart
       
-      // Generate fewer messages to reduce database load
-      const messageCount = 3 + Math.floor(Math.random() * 3); // 3-5 messages per contact
-      
-      for (let i = 0; i < messageCount; i++) {
-        const messageId = `msg-${contact.id}-${i}`;
-        const timestamp = new Date(now.getTime() - (messageCount - i) * 3600000); // 1 hour apart
-        const isIncoming = Math.random() > 0.5;
-        
-        messages.push({
-          id: messageId,
-          threadId,
-          contactId: contact.id,
-          phoneNumber: contact.phone,
-          content: this.generateMockMessageContent(i, isIncoming),
-          messageType: Math.random() > 0.3 ? 'imessage' : 'sms',
-          direction: isIncoming ? 'incoming' : 'outgoing',
-          timestamp,
-          attachments: Math.random() > 0.8 ? [{
-            filename: 'image.jpg',
-            path: `/attachments/${messageId}/image.jpg`,
-            type: 'image',
-            size: 1024 * 1024
-          }] : undefined
-        });
-      }
+      messages.push({
+        id: messageId,
+        threadId,
+        contactId,
+        phoneNumber,
+        content: msg.content,
+        messageType: 'imessage',
+        direction: msg.isIncoming ? 'incoming' : 'outgoing',
+        timestamp
+        // Removed attachments to simplify
+      });
     });
 
     return messages;
