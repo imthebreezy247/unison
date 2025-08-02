@@ -1076,6 +1076,7 @@ export class DatabaseManager {
       await addColumnIfNotExists('sync_history', 'completed', 'BOOLEAN DEFAULT 1');
       await addColumnIfNotExists('file_transfers', 'completed', 'BOOLEAN DEFAULT 0');
       await addColumnIfNotExists('backup_history', 'completed', 'BOOLEAN DEFAULT 0');
+      await addColumnIfNotExists('message_threads', 'last_message_content', 'TEXT');
 
       // Create indexes if they don't exist
       try {
