@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import { fileURLToPath } from 'url';
 import log from 'electron-log';
 import { DatabaseManager } from './database/DatabaseManager';
-import { DeviceManager } from './services/DeviceManager';
+import { DirectiPhoneManager } from './services/DirectiPhoneManager';
 import { NotificationManager } from './services/NotificationManager';
 import { ContactSyncService } from './services/ContactSyncService';
 import { ContactImportExportService } from './services/ContactImportExportService';
@@ -21,7 +21,7 @@ class UnisonXApp {
   private mainWindow: BrowserWindow | null = null;
   private tray: Tray | null = null;
   private databaseManager: DatabaseManager;
-  private deviceManager: DeviceManager;
+  private deviceManager: DirectiPhoneManager;
   private notificationManager: NotificationManager;
   private contactSyncService: ContactSyncService;
   private contactImportExportService: ContactImportExportService;
@@ -32,7 +32,7 @@ class UnisonXApp {
 
   constructor() {
     this.databaseManager = new DatabaseManager();
-    this.deviceManager = new DeviceManager(this.databaseManager);
+    this.deviceManager = new DirectiPhoneManager();
     this.notificationManager = new NotificationManager();
     this.contactSyncService = new ContactSyncService(this.databaseManager);
     this.contactImportExportService = new ContactImportExportService(this.databaseManager);
@@ -67,8 +67,8 @@ class UnisonXApp {
     });
 
     // Handle before quit
-    app.on('before-quit', () => {
-      this.cleanup();
+    app.on('before-quit', async () => {
+      await this.cleanup();
     });
   }
 
@@ -277,6 +277,23 @@ class UnisonXApp {
         electron: process.versions.electron,
         chrome: process.versions.chrome,
       };
+    });
+
+    // Debug iPhone connection
+    ipcMain.handle('debug:run-iphone-diagnostics', async () => {
+      try {
+        const { iPhoneDebugger } = await import('./debug-iphone-connection');
+        const diagnostics = new iPhoneDebugger();
+        const debugInfo = await diagnostics.collectFullDebugInfo();
+        
+        // Also test Chris's specific iPhone
+        await diagnostics.testSpecificDevice('00008101-000120620AE9001E');
+        
+        return debugInfo;
+      } catch (error) {
+        log.error('Debug iPhone diagnostics error:', error);
+        throw error;
+      }
     });
 
     // Logging
@@ -966,18 +983,17 @@ class UnisonXApp {
       await this.settingsService.initialize();
       log.info('Settings service initialized successfully');
 
-      // Start device scanning
-      this.deviceManager.startScanning();
-      log.info('Device scanning started');
+      // DirectiPhoneManager automatically starts scanning during initialization
+      log.info('DirectiPhoneManager scanning started automatically');
 
     } catch (error) {
       log.error('Failed to initialize services:', error);
     }
   }
 
-  private cleanup(): void {
+  private async cleanup(): Promise<void> {
     try {
-      this.deviceManager.stopScanning();
+      await this.deviceManager.cleanup();
       this.contactSyncService.cleanup();
       this.messageSyncService.cleanup();
       this.callLogService.cleanup();

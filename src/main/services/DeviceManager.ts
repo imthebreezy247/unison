@@ -25,6 +25,7 @@ export interface DeviceInfo {
   trusted?: boolean;
   paired?: boolean;
   serialNumber?: string;
+  udid?: string;
 }
 
 export class DeviceManager extends EventEmitter {
