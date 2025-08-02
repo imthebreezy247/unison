@@ -5,6 +5,10 @@ import log from 'electron-log';
 import { iPhoneConnection, iPhoneDevice } from './iphone/iPhoneConnection';
 import { BackupParser } from './iphone/BackupParser';
 import { DatabaseManager } from '../database/DatabaseManager';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 
 export interface DeviceInfo {
   id: string;
@@ -37,13 +41,23 @@ export class DeviceManager extends EventEmitter {
   }
 
   async initialize(): Promise<void> {
-    log.info('🚫 DeviceManager COMPLETELY DISABLED to stop flickering');
+    log.info('Initializing DeviceManager with proper device deduplication');
     
-    // NO INITIALIZATION - NO SERVICES - NO MONITORING
-    // Everything disabled until flickering is completely resolved
-    
-    log.info('DeviceManager initialization skipped');
-    return;
+    try {
+      // Set up iPhone connection listeners
+      this.setupiPhoneListeners();
+      
+      // Initialize iPhone connection
+      await this.iPhoneConnection.initialize();
+      
+      // Start device scanning with deduplication
+      this.startScanning();
+      
+      log.info('DeviceManager initialized successfully');
+    } catch (error) {
+      log.error('Failed to initialize DeviceManager:', error);
+      throw error;
+    }
   }
 
   private setupiPhoneListeners(): void {
@@ -109,41 +123,52 @@ export class DeviceManager extends EventEmitter {
 
   async scanForDevices(): Promise<DeviceInfo[]> {
     try {
-      log.info('SCAN DISABLED - Device scanning temporarily disabled to stop flickering');
+      log.info('Scanning for devices with deduplication');
       
-      // Return a single stable device entry for your iPhone to test with
-      const testDevice: DeviceInfo = {
-        id: '00008101-000120620AE9001E',
-        name: 'iPhone 12 Pro',
-        type: 'iPhone',
-        model: 'iPhone 12 Pro',
-        osVersion: '18.5',
-        connected: true,
-        batteryLevel: 85,
-        connectionType: 'usb',
-        lastSeen: new Date().toISOString(),
-        trusted: false,
-        paired: false,
-        serialNumber: '00008101-000120620AE9001E',
-      };
-
-      // Update device map with stable single device
+      // Get Windows devices with proper deduplication
+      const windowsDevices = await this.detectWindowsDevices();
+      
+      // Get iPhone devices
+      const iPhoneDevices = await this.iPhoneConnection.scanDevices();
+      
+      // Convert iPhone devices to DeviceInfo format
+      const convertedDevices = iPhoneDevices.map(device => this.convertToDeviceInfo(device));
+      
+      // Merge Windows and iPhone devices, preferring iPhone data when available
+      const mergedDevices = this.mergeDevices(windowsDevices, convertedDevices);
+      
+      // Update device map
       this.devices.clear();
-      this.devices.set(testDevice.id, testDevice);
-
-      this.emit('devices-updated', [testDevice]);
-      return [testDevice];
+      for (const device of mergedDevices) {
+        this.devices.set(device.id, device);
+      }
+      
+      // Only emit if we have real devices
+      if (mergedDevices.length > 0) {
+        this.emit('devices-updated', mergedDevices);
+      }
+      
+      return mergedDevices;
     } catch (error) {
-      log.error('Error in disabled scan method:', error);
+      log.error('Error scanning for devices:', error);
       return [];
     }
   }
 
   startScanning(): void {
-    // Disable automatic scanning - only scan on demand to prevent flickering
-    log.info('Automatic scanning disabled - using manual scan only');
+    log.info('Starting device scanning with 5-second interval');
     
-    // Don't do initial scan here - let it be triggered manually
+    // Initial scan
+    this.scanForDevices();
+    
+    // Set up periodic scanning with proper interval
+    if (this.scanInterval) {
+      clearInterval(this.scanInterval);
+    }
+    
+    this.scanInterval = setInterval(() => {
+      this.scanForDevices();
+    }, 5000); // Scan every 5 seconds instead of constantly
   }
 
   stopScanning(): void {
@@ -577,5 +602,136 @@ export class DeviceManager extends EventEmitter {
   cleanup(): void {
     this.stopScanning();
     this.iPhoneConnection.cleanup();
+  }
+
+  private async detectWindowsDevices(): Promise<DeviceInfo[]> {
+    const devices: DeviceInfo[] = [];
+    const seenDeviceIds = new Set<string>();
+    
+    try {
+      // Query Windows devices using WMI
+      const wmiDevices = await this.queryWindowsDevices();
+      
+      // Sort devices by priority (actual iPhone entries first)
+      wmiDevices.sort((a, b) => this.getDevicePriority(a.Name) - this.getDevicePriority(b.Name));
+      
+      for (const wmiDevice of wmiDevices) {
+        const rootId = this.getRootDeviceId(wmiDevice.DeviceID);
+        
+        // Skip if we've already seen this root device
+        if (seenDeviceIds.has(rootId)) {
+          log.debug(`Skipping duplicate device entry: ${wmiDevice.Name} (${wmiDevice.DeviceID})`);
+          continue;
+        }
+        
+        // Only add the main iPhone entry, skip composite/driver entries
+        if (wmiDevice.Name && this.isMainiPhoneEntry(wmiDevice.Name)) {
+          seenDeviceIds.add(rootId);
+          
+          const device: DeviceInfo = {
+            id: rootId,
+            name: 'iPhone',
+            type: 'iPhone',
+            model: 'iPhone',
+            osVersion: 'Unknown',
+            connected: true,
+            connectionType: 'usb',
+            lastSeen: new Date().toISOString(),
+            trusted: false,
+            paired: false,
+            serialNumber: rootId,
+          };
+          
+          devices.push(device);
+          log.info(`Found iPhone device: ${rootId}`);
+        }
+      }
+      
+      return devices;
+    } catch (error) {
+      log.error('Error detecting Windows devices:', error);
+      return [];
+    }
+  }
+
+  private async queryWindowsDevices(): Promise<any[]> {
+    try {
+      // Use PowerShell to query for Apple devices
+      const command = `powershell -Command "Get-WmiObject Win32_PnPEntity | Where-Object { $_.Name -like '*Apple*' -or $_.Name -like '*iPhone*' } | Select-Object Name, DeviceID, Status | ConvertTo-Json"`;
+      
+      const { stdout } = await execAsync(command, { 
+        timeout: 10000,
+        windowsHide: true 
+      });
+      
+      if (!stdout || stdout.trim() === '') {
+        return [];
+      }
+      
+      // Parse JSON output
+      const result = JSON.parse(stdout);
+      return Array.isArray(result) ? result : [result];
+    } catch (error) {
+      log.error('Error querying Windows devices:', error);
+      return [];
+    }
+  }
+
+  private getRootDeviceId(deviceId: string): string {
+    // Remove MI_XX suffixes and get base device ID
+    const parts = deviceId.split('&MI_');
+    return parts[0];
+  }
+
+  private getDevicePriority(name: string): number {
+    if (!name) return 999;
+    
+    // Lower number = higher priority
+    if (name === 'iPhone') return 1;
+    if (name.includes('iPhone') && !name.includes('Driver') && !name.includes('Composite')) return 2;
+    if (name.includes('Apple Mobile Device USB Device')) return 3;
+    if (name.includes('Composite')) return 4;
+    return 5;
+  }
+
+  private isMainiPhoneEntry(name: string): boolean {
+    if (!name) return false;
+    
+    // Only consider entries that are likely the main device
+    return (name === 'iPhone' || 
+            (name.includes('iPhone') && 
+             !name.includes('Driver') && 
+             !name.includes('Composite') && 
+             !name.includes('USB Device')));
+  }
+
+  private mergeDevices(windowsDevices: DeviceInfo[], iPhoneDevices: DeviceInfo[]): DeviceInfo[] {
+    const deviceMap = new Map<string, DeviceInfo>();
+    
+    // Add Windows devices first
+    for (const device of windowsDevices) {
+      deviceMap.set(device.id, device);
+    }
+    
+    // Override with iPhone device data (more accurate)
+    for (const device of iPhoneDevices) {
+      // Find matching Windows device by serial number or create new entry
+      const existingDevice = Array.from(deviceMap.values()).find(
+        d => d.serialNumber === device.serialNumber || d.id === device.id
+      );
+      
+      if (existingDevice) {
+        // Merge data, preferring iPhone information
+        deviceMap.set(device.id, {
+          ...existingDevice,
+          ...device,
+          connected: true,
+        });
+      } else {
+        deviceMap.set(device.id, device);
+      }
+    }
+    
+    return Array.from(deviceMap.values());
   }
 }

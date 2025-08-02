@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 
 export interface Device {
   id: string;
@@ -57,10 +57,21 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({ children
     syncProgress: 0,
   });
 
+  // Throttling for device updates
+  const lastUpdateTime = useRef<number>(0);
+  const updateThrottleMs = 1000; // 1 second throttle
+
   // Initialize connection monitoring
   useEffect(() => {
     // Set up real-time device event listeners first
     const handleDevicesUpdated = (devices: any[]) => {
+      // Throttle updates to prevent console spam
+      const now = Date.now();
+      if (now - lastUpdateTime.current < updateThrottleMs) {
+        return; // Skip this update if it's too soon
+      }
+      lastUpdateTime.current = now;
+      
       console.log('ConnectionContext: Received devices-updated event with', devices.length, 'devices');
       setState(prev => ({
         ...prev,
@@ -138,32 +149,48 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({ children
   }, []);
 
   const scanForDevices = async (): Promise<void> => {
-    console.log('🚫 SCAN DISABLED - Returning stable test device to stop flickering');
-
-    // Return a single stable device to stop all flickering
-    const stableDevice = {
-      id: '00008101-000120620AE9001E',
-      name: 'iPhone 12 Pro',
-      type: 'iPhone' as const,
-      model: 'iPhone 12 Pro',
-      osVersion: '18.5',
-      connected: true,
-      batteryLevel: 85,
-      connectionType: 'usb' as const,
-      lastSeen: new Date().toISOString(),
-      trusted: false,
-      paired: false,
-      serialNumber: '00008101-000120620AE9001E',
-    };
-
-    setState(prev => ({
-      ...prev,
-      devices: [stableDevice],
-      isScanning: false,
-    }));
+    console.log('ConnectionContext: Scanning for devices');
     
-    console.log('🟢 Stable device set - no more scanning');
-    window.unisonx?.log?.info('Stable test device returned - scanning disabled');
+    setState(prev => ({ ...prev, isScanning: true }));
+    
+    try {
+      const devices = await window.unisonx?.device?.scan();
+      
+      if (devices && devices.length > 0) {
+        console.log(`ConnectionContext: Found ${devices.length} device(s)`);
+        setState(prev => ({
+          ...prev,
+          devices: devices.map((device: any) => ({
+            id: device.id,
+            name: device.name || 'Unknown iPhone',
+            type: device.type || 'iPhone',
+            model: device.model || 'Unknown Model',
+            osVersion: device.osVersion || 'Unknown',
+            connected: device.connected || false,
+            batteryLevel: device.batteryLevel,
+            connectionType: device.connectionType || 'disconnected',
+            lastSeen: device.lastSeen || new Date().toISOString(),
+            trusted: device.trusted,
+            paired: device.paired,
+            serialNumber: device.serialNumber,
+          })),
+          isScanning: false,
+        }));
+        window.unisonx?.log?.info(`Scan complete: Found ${devices.length} devices`);
+      } else {
+        console.log('ConnectionContext: No devices found');
+        setState(prev => ({
+          ...prev,
+          devices: [],
+          isScanning: false,
+        }));
+        window.unisonx?.log?.info('Scan complete: No devices found');
+      }
+    } catch (error) {
+      console.error('Device scan failed:', error);
+      window.unisonx?.log?.error('Device scan failed', error);
+      setState(prev => ({ ...prev, isScanning: false }));
+    }
   };
 
   const connectDevice = async (deviceId: string): Promise<boolean> => {

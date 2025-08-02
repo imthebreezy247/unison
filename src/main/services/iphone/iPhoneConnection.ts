@@ -40,13 +40,19 @@ export class iPhoneConnection extends EventEmitter {
   }
 
   async initialize(): Promise<void> {
-    log.info('🚫 iPhone connection service DISABLED to stop flickering');
+    log.info('Initializing iPhone connection service with proper device detection');
     
-    // NO INITIALIZATION - NO MONITORING - NO SCANNING
-    // Everything disabled until flickering is completely resolved
-    
-    log.info('iPhone service initialization skipped');
-    return;
+    try {
+      // Check for Apple support on Windows
+      const hasSupport = await this.checkAppleSupport();
+      if (!hasSupport) {
+        log.warn('Apple Mobile Device Service not found. Please install iTunes or Apple Device Support.');
+      }
+      
+      log.info('iPhone connection service initialized');
+    } catch (error) {
+      log.error('Failed to initialize iPhone connection:', error);
+    }
   }
 
   private async checkAppleSupport(): Promise<boolean> {
@@ -74,12 +80,13 @@ export class iPhoneConnection extends EventEmitter {
 
   async scanDevices(): Promise<iPhoneDevice[]> {
     try {
-      log.info('iPhone scanning DISABLED to prevent flickering');
+      log.info('Scanning for iPhone devices via libimobiledevice');
       
-      // Return empty array to stop all scanning activity
+      // For now, return empty array until libimobiledevice is integrated
+      // This will be implemented in Phase 2
       return [];
     } catch (error) {
-      log.error('Error in disabled iPhone scan:', error);
+      log.error('Error scanning for iPhone devices:', error);
       return [];
     }
   }
