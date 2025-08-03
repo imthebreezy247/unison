@@ -1,0 +1,340 @@
+import { exec, spawn } from 'child_process';
+import { EventEmitter } from 'events';
+import log from 'electron-log';
+import * as path from 'path';
+import { WindowsUIAutomation } from './WindowsUIAutomation';
+
+export interface PhoneLinkMessage {
+  from: string;
+  content: string;
+  timestamp: Date;
+  source: 'phone_link';
+  messageType?: 'sms' | 'imessage';
+}
+
+export class PhoneLinkBridge extends EventEmitter {
+  private isRunning = false;
+  private messageQueue: any[] = [];
+  private monitorProcess: any = null;
+  private isMonitoring = false;
+  private uiAutomation: WindowsUIAutomation;
+
+  constructor() {
+    super();
+    log.info('🔗 Initializing Phone Link Bridge...');
+    this.uiAutomation = new WindowsUIAutomation();
+    this.initialize();
+  }
+
+  private async initialize() {
+    try {
+      // Start Phone Link in background
+      await this.startPhoneLinkHidden();
+      
+      // Start monitoring for messages
+      await this.startMessageMonitoring();
+      
+      log.info('✅ Phone Link Bridge initialized successfully');
+    } catch (error) {
+      log.error('❌ Failed to initialize Phone Link Bridge:', error);
+    }
+  }
+
+  private async startPhoneLinkHidden(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      log.info('📱 Starting Phone Link in background...');
+      
+      // Launch Phone Link minimized and hidden
+      const command = 'powershell -WindowStyle Hidden -Command "Start-Process ms-phone: -WindowStyle Minimized"';
+      
+      exec(command, (error, stdout, stderr) => {
+        if (error) {
+          log.error('Failed to start Phone Link:', error);
+          reject(error);
+        } else {
+          log.info('✅ Phone Link started in background');
+          this.isRunning = true;
+          
+          // Give Phone Link time to initialize
+          setTimeout(() => resolve(), 2000);
+        }
+      });
+    });
+  }
+
+  private async startMessageMonitoring(): Promise<void> {
+    if (this.isMonitoring) return;
+    
+    log.info('👂 Starting Phone Link message monitoring...');
+    
+    try {
+      // Method 1: Monitor Windows notifications
+      this.monitorWindowsNotifications();
+      
+      // Method 2: Poll for changes every 2 seconds
+      this.startPolling();
+      
+      this.isMonitoring = true;
+      log.info('✅ Message monitoring started');
+    } catch (error) {
+      log.error('❌ Failed to start message monitoring:', error);
+    }
+  }
+
+  private monitorWindowsNotifications(): void {
+    log.info('🔔 Setting up Windows notification monitoring...');
+    
+    // PowerShell script to monitor notifications
+    const psScript = `
+      Add-Type @"
+        using System;
+        using System.Runtime.InteropServices;
+        using Windows.UI.Notifications.Management;
+        using Windows.Foundation.Collections;
+      "@
+      
+      try {
+        $listener = [Windows.UI.Notifications.Management.UserNotificationListener]::Current
+        $access = $listener.RequestAccessAsync().GetAwaiter().GetResult()
+        
+        if ($access -eq [Windows.UI.Notifications.Management.UserNotificationListenerAccessStatus]::Allowed) {
+          Write-Output "MONITOR_READY"
+          
+          while($true) {
+            try {
+              $notifications = $listener.GetNotificationsAsync([Windows.UI.Notifications.NotificationKinds]::Toast).GetAwaiter().GetResult()
+              
+              foreach($notification in $notifications) {
+                $appName = $notification.AppInfo.DisplayInfo.DisplayName
+                
+                if($appName -like "*Phone Link*" -or $appName -like "*Your Phone*") {
+                  try {
+                    $binding = $notification.Notification.Visual.GetBinding("ToastGeneric")
+                    if($binding -ne $null) {
+                      $textElements = $binding.GetTextElements()
+                      if($textElements.Count -gt 0) {
+                        $text = $textElements[0].Text
+                        Write-Output "PHONE_LINK_MESSAGE:$text"
+                      }
+                    }
+                  } catch {
+                    # Ignore individual notification parsing errors
+                  }
+                }
+              }
+            } catch {
+              # Ignore notification polling errors and continue
+            }
+            
+            Start-Sleep -Milliseconds 1000
+          }
+        } else {
+          Write-Output "ACCESS_DENIED"
+        }
+      } catch {
+        Write-Output "SETUP_ERROR:$($_.Exception.Message)"
+      }
+    `;
+
+    // Start PowerShell process
+    const psProcess = spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', psScript], {
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+
+    this.monitorProcess = psProcess;
+
+    psProcess.stdout?.on('data', (data: Buffer) => {
+      const output = data.toString().trim();
+      
+      if (output === 'MONITOR_READY') {
+        log.info('✅ Notification monitoring ready');
+      } else if (output === 'ACCESS_DENIED') {
+        log.warn('⚠️  Notification access denied - some features may not work');
+      } else if (output.startsWith('PHONE_LINK_MESSAGE:')) {
+        const messageContent = output.replace('PHONE_LINK_MESSAGE:', '');
+        this.processIncomingMessage(messageContent);
+      } else if (output.startsWith('SETUP_ERROR:')) {
+        log.error('PowerShell setup error:', output);
+      }
+    });
+
+    psProcess.stderr?.on('data', (data: Buffer) => {
+      log.debug('PowerShell stderr:', data.toString());
+    });
+
+    psProcess.on('close', (code) => {
+      log.warn(`Notification monitor process exited with code ${code}`);
+      this.isMonitoring = false;
+      
+      // Restart monitoring after a delay
+      setTimeout(() => {
+        if (this.isRunning) {
+          this.monitorWindowsNotifications();
+        }
+      }, 5000);
+    });
+  }
+
+  private startPolling(): void {
+    // Alternative method: Check for Phone Link window changes
+    setInterval(() => {
+      if (this.isRunning) {
+        this.checkForNewMessages();
+      }
+    }, 2000);
+  }
+
+  private processIncomingMessage(rawContent: string): void {
+    try {
+      const messageData = this.parsePhoneLinkNotification(rawContent);
+      
+      if (messageData) {
+        log.info('📨 Message intercepted from Phone Link:', messageData);
+        
+        // Emit to UnisonX
+        this.emit('message-received', messageData);
+      }
+    } catch (error) {
+      log.error('Error processing incoming message:', error);
+    }
+  }
+
+  private parsePhoneLinkNotification(content: string): PhoneLinkMessage | null {
+    try {
+      // Common Phone Link notification formats:
+      // "Contact Name: Message content"
+      // "Contact Name\nMessage content" 
+      // "+1234567890: Message content"
+      
+      let match = content.match(/^(.+?):\s*(.+)$/s);
+      
+      if (!match) {
+        // Try newline format
+        match = content.match(/^(.+?)\n(.+)$/s);
+      }
+      
+      if (match && match[2]?.trim()) {
+        const from = match[1].trim();
+        const messageContent = match[2].trim();
+        
+        // Skip if it looks like a system message
+        if (messageContent.toLowerCase().includes('phone link') || 
+            messageContent.toLowerCase().includes('notification')) {
+          return null;
+        }
+        
+        return {
+          from: from,
+          content: messageContent,
+          timestamp: new Date(),
+          source: 'phone_link',
+          messageType: 'sms' // Default to SMS, could be enhanced to detect iMessage
+        };
+      }
+    } catch (error) {
+      log.debug('Error parsing notification:', error);
+    }
+    
+    return null;
+  }
+
+  private async checkForNewMessages(): Promise<void> {
+    // Alternative method: Check Phone Link's local storage or registry
+    // This is a fallback if notification monitoring doesn't work
+    try {
+      // Could check:
+      // %LOCALAPPDATA%\Packages\Microsoft.YourPhone_8wekyb3d8bbwe\LocalState
+      // Registry entries
+      // Or use Windows APIs to query Phone Link's state
+    } catch (error) {
+      log.debug('Error checking for new messages:', error);
+    }
+  }
+
+  public async sendMessage(to: string, message: string): Promise<boolean> {
+    log.info(`📤 Sending message via Phone Link to ${to}: "${message}"`);
+    
+    if (!this.isRunning) {
+      log.error('Phone Link is not running');
+      return false;
+    }
+
+    try {
+      // Use Windows UI automation to send the message
+      const success = await this.uiAutomation.sendMessageThroughPhoneLink(to, message);
+      
+      if (success) {
+        log.info('✅ Message sent successfully via Phone Link');
+        
+        // Remove from queue if it was queued
+        this.messageQueue = this.messageQueue.filter(
+          msg => !(msg.to === to && msg.message === message)
+        );
+        
+        return true;
+      } else {
+        log.error('❌ Failed to send message via UI automation');
+        
+        // Add to queue for retry
+        this.messageQueue.push({
+          to,
+          message,
+          timestamp: new Date(),
+          retryCount: 0
+        });
+        
+        return false;
+      }
+    } catch (error) {
+      log.error('Failed to send message via Phone Link:', error);
+      return false;
+    }
+  }
+
+  public async isPhoneLinkRunning(): Promise<boolean> {
+    return new Promise((resolve) => {
+      exec('tasklist /FI "IMAGENAME eq YourPhone.exe" /FO CSV /NH', (error, stdout) => {
+        if (error) {
+          resolve(false);
+        } else {
+          const isRunning = stdout.includes('YourPhone.exe');
+          resolve(isRunning);
+        }
+      });
+    });
+  }
+
+  public async restartPhoneLink(): Promise<void> {
+    log.info('🔄 Restarting Phone Link...');
+    
+    // Kill existing Phone Link process
+    exec('taskkill /F /IM YourPhone.exe', () => {
+      // Wait a moment then restart
+      setTimeout(async () => {
+        await this.startPhoneLinkHidden();
+      }, 1000);
+    });
+  }
+
+  public getQueuedMessages(): any[] {
+    return [...this.messageQueue];
+  }
+
+  public clearQueue(): void {
+    this.messageQueue = [];
+  }
+
+  public async cleanup(): Promise<void> {
+    log.info('🧹 Cleaning up Phone Link Bridge...');
+    
+    this.isRunning = false;
+    this.isMonitoring = false;
+    
+    if (this.monitorProcess) {
+      this.monitorProcess.kill();
+      this.monitorProcess = null;
+    }
+    
+    this.removeAllListeners();
+  }
+}

@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import { app, dialog } from 'electron';
 import { DatabaseManager, Message, MessageThread, MessageAttachment } from '../database/DatabaseManager';
 import { iPhoneBackupParser } from './iPhoneBackupParser';
+import { PhoneLinkBridge, PhoneLinkMessage } from './PhoneLinkBridge';
 
 export interface MessageSyncResult {
   success: boolean;
@@ -37,6 +38,7 @@ export interface ParsedMessage {
 
 export class MessageSyncService {
   private databaseManager: DatabaseManager;
+  private phoneLinkBridge: PhoneLinkBridge | null = null;
 
   constructor(databaseManager: DatabaseManager) {
     this.databaseManager = databaseManager;
@@ -44,6 +46,120 @@ export class MessageSyncService {
 
   async initialize(): Promise<void> {
     log.info('MessageSyncService initialized');
+    
+    // Initialize Phone Link Bridge for real-time messaging
+    await this.initializePhoneLinkBridge();
+  }
+
+  private async initializePhoneLinkBridge(): Promise<void> {
+    try {
+      log.info('🔗 Initializing Phone Link Bridge for real-time messaging...');
+      
+      this.phoneLinkBridge = new PhoneLinkBridge();
+      
+      // Listen for incoming messages from Phone Link
+      this.phoneLinkBridge.on('message-received', async (messageData: PhoneLinkMessage) => {
+        log.info('📨 New message received from Phone Link:', messageData);
+        
+        try {
+          await this.handleIncomingPhoneLinkMessage(messageData);
+        } catch (error) {
+          log.error('Error handling incoming Phone Link message:', error);
+        }
+      });
+      
+      log.info('✅ Phone Link Bridge initialized successfully');
+    } catch (error) {
+      log.error('❌ Failed to initialize Phone Link Bridge:', error);
+      // Continue without Phone Link bridge - app should still work
+    }
+  }
+
+  private async handleIncomingPhoneLinkMessage(messageData: PhoneLinkMessage): Promise<void> {
+    try {
+      // Find or create thread for this phone number/contact
+      let threadId = await this.findThreadByPhoneNumber(messageData.from);
+      
+      if (!threadId) {
+        // Create new thread
+        threadId = await this.createThreadForPhoneNumber(messageData.from);
+      }
+      
+      // Save the incoming message to database
+      const messageId = `msg-phonelink-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
+      await this.databaseManager.run(`
+        INSERT INTO messages (
+          id, thread_id, phone_number, content, message_type, 
+          direction, timestamp, read_status, delivered_status, failed_status,
+          archived
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        messageId,
+        threadId,
+        messageData.from,
+        messageData.content,
+        messageData.messageType || 'sms',
+        'incoming',
+        messageData.timestamp.toISOString(),
+        0, // Mark as unread initially
+        1, // Delivered (we received it)
+        0, // Not failed
+        0  // Not archived
+      ]);
+      
+      // Update thread with latest message
+      await this.databaseManager.run(`
+        UPDATE message_threads 
+        SET last_message_id = ?, last_message_timestamp = ?, last_message_content = ?, unread_count = unread_count + 1
+        WHERE id = ?
+      `, [messageId, messageData.timestamp.toISOString(), messageData.content, threadId]);
+      
+      log.info(`✅ Saved incoming message from ${messageData.from} to thread ${threadId}`);
+      
+      // TODO: Emit event to update UI in real-time
+      // this.emit('new-message', { threadId, messageId, messageData });
+      
+    } catch (error) {
+      log.error('Error saving incoming Phone Link message:', error);
+    }
+  }
+
+  private async findThreadByPhoneNumber(phoneNumber: string): Promise<string | null> {
+    try {
+      const result = await this.databaseManager.query(
+        'SELECT id FROM message_threads WHERE phone_number = ? LIMIT 1',
+        [phoneNumber]
+      );
+      
+      return result.length > 0 ? result[0].id : null;
+    } catch (error) {
+      log.error('Error finding thread by phone number:', error);
+      return null;
+    }
+  }
+
+  private async createThreadForPhoneNumber(phoneNumber: string): Promise<string> {
+    const threadId = `thread-${phoneNumber.replace(/[^a-zA-Z0-9]/g, '')}-${Date.now()}`;
+    
+    await this.databaseManager.run(`
+      INSERT INTO message_threads (
+        id, phone_number, last_message_timestamp, 
+        unread_count, is_group, archived, pinned, muted
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      threadId,
+      phoneNumber,
+      new Date().toISOString(),
+      0, // unread_count
+      0, // is_group
+      0, // archived
+      0, // pinned  
+      0  // muted
+    ]);
+    
+    log.info(`✅ Created new thread ${threadId} for phone number ${phoneNumber}`);
+    return threadId;
   }
 
   /**
@@ -332,7 +448,7 @@ export class MessageSyncService {
   }
 
   /**
-   * Send a new message (saves locally, iPhone sending not yet implemented)
+   * Send a new message via Phone Link bridge
    */
   async sendMessage(threadId: string, content: string, messageType: 'sms' | 'imessage' = 'sms'): Promise<string> {
     const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -349,7 +465,28 @@ export class MessageSyncService {
     
     const phoneNumber = thread[0].phone_number;
     
-    // Insert into database with proper primitive types
+    // Try to send via Phone Link first
+    let deliveryStatus = 0; // Assume failed initially
+    
+    if (this.phoneLinkBridge && messageType === 'sms') {
+      try {
+        log.info(`🚀 Attempting to send message via Phone Link to ${phoneNumber}`);
+        const success = await this.phoneLinkBridge.sendMessage(phoneNumber, content);
+        
+        if (success) {
+          deliveryStatus = 1; // Mark as delivered
+          log.info('✅ Message sent successfully via Phone Link');
+        } else {
+          log.warn('⚠️  Phone Link send failed, message saved locally only');
+        }
+      } catch (error) {
+        log.error('❌ Phone Link send error:', error);
+      }
+    } else {
+      log.info('📝 Phone Link not available, saving message locally only');
+    }
+    
+    // Save to database regardless of send success
     await this.databaseManager.run(`
       INSERT INTO messages (
         id, thread_id, phone_number, content, message_type, direction, 
@@ -364,12 +501,12 @@ export class MessageSyncService {
       String(messageType),
       'outgoing',
       new Date().toISOString(),
-      1, // SQLite boolean as integer
-      1, // Mark as delivered for now
-      0, // SQLite boolean as integer
+      1, // read_status (our own message is read)
+      deliveryStatus, // delivered_status (1 if sent via Phone Link, 0 if failed)
+      deliveryStatus === 0 ? 1 : 0, // failed_status (opposite of delivered)
       JSON.stringify([]),
       JSON.stringify(null),
-      0 // SQLite boolean as integer
+      0 // archived
     ]);
 
     // Update thread timestamp and last message
@@ -379,14 +516,11 @@ export class MessageSyncService {
       WHERE id = ?
     `, [messageId, new Date().toISOString(), content, threadId]);
 
-    // Log what would be sent (for future iPhone integration)
-    log.info(`MESSAGE TO SEND: To: ${phoneNumber}, Content: ${content}, Type: ${messageType}`);
-    log.info('Note: Actual iPhone sending requires Apple private frameworks or jailbreak access');
-    
-    // In a real implementation, this would use:
-    // 1. Apple's private CoreTelephony framework (requires jailbreak)
-    // 2. Or a companion iOS app with proper entitlements
-    // 3. Or integration with services like Twilio for SMS
+    if (deliveryStatus === 1) {
+      log.info(`✅ MESSAGE SENT SUCCESSFULLY: To: ${phoneNumber}, Content: "${content}", Via: Phone Link`);
+    } else {
+      log.warn(`⚠️  MESSAGE SAVED LOCALLY: To: ${phoneNumber}, Content: "${content}", Status: Not sent`);
+    }
     
     return messageId;
   }
