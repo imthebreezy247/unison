@@ -3,7 +3,6 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { app, dialog } from 'electron';
 import { DatabaseManager, Message, MessageThread, MessageAttachment } from '../database/DatabaseManager';
-import { iPhoneBackupParser } from './iPhoneBackupParser';
 import { PhoneLinkBridge, PhoneLinkMessage } from './PhoneLinkBridge';
 
 export interface MessageSyncResult {
@@ -45,7 +44,7 @@ export class MessageSyncService {
   }
 
   async initialize(): Promise<void> {
-    log.info('MessageSyncService initialized');
+    log.info('📱 MessageSyncService initialized with Phone Link bridge only');
     
     // Initialize Phone Link Bridge for real-time messaging
     await this.initializePhoneLinkBridge();
@@ -163,10 +162,10 @@ export class MessageSyncService {
   }
 
   /**
-   * Sync messages from iPhone backup or generate test data
+   * Create initial test data for Phone Link messaging
    */
   async syncMessagesFromDevice(deviceId: string, backupPath?: string): Promise<MessageSyncResult> {
-    log.info(`Starting message sync from iTunes backup for device: ${deviceId}`);
+    log.info(`📱 Creating initial Phone Link test data for device: ${deviceId}`);
     
     const result: MessageSyncResult = {
       success: false,
@@ -177,26 +176,21 @@ export class MessageSyncService {
     };
 
     try {
-      // Use the backup parser to get real messages or test data
-      const parser = new iPhoneBackupParser(deviceId);
-      const messages = await parser.parseMessages();
-      
-      log.info(`Found ${messages.length} messages to import`);
-      
-      // Also create a thread for Chris's phone number with a welcome message
+      // Create a welcome message for Chris's phone number
       const chrisWelcomeMessage = {
         id: 'msg-welcome-chris',
         threadId: 'thread-chris-phone',
         contactId: 'contact-chris-real',
         phoneNumber: '+19415180701', // Chris's actual number
-        content: 'Welcome to UnisonX! Your messages will appear here. Send a test message below! 📱',
+        content: 'Welcome to UnisonX with Phone Link! Send and receive messages directly through your PC! 📱✨',
         messageType: 'sms' as const,
         direction: 'incoming' as const,
         timestamp: new Date()
       };
       
-      // Add welcome message to the beginning
-      const allMessages = [chrisWelcomeMessage, ...messages];
+      // Create simple test conversation
+      const testMessages = this.generateMockMessages();
+      const allMessages = [chrisWelcomeMessage, ...testMessages];
       
       // Import all messages
       for (const parsedMessage of allMessages) {
@@ -214,10 +208,7 @@ export class MessageSyncService {
       result.threadsCreated = await this.countThreads();
 
       result.success = true;
-      log.info(`Message sync completed: ${result.messagesImported} messages, ${result.threadsCreated} threads`);
-      
-      // Clean up parser
-      parser.cleanup();
+      log.info(`✅ Phone Link test data created: ${result.messagesImported} messages, ${result.threadsCreated} threads`);
       
     } catch (error) {
       result.errors.push(`Message sync failed: ${error}`);
@@ -228,37 +219,16 @@ export class MessageSyncService {
   }
 
   /**
-   * Import messages specifically from iTunes backup
+   * Create initial Phone Link test data
    */
   async importFromBackup(deviceId?: string): Promise<MessageSyncResult> {
-    const targetDeviceId = deviceId || '00008101-000120620AE9001E'; // Chris's device
-    log.info(`Importing messages from iTunes backup for device: ${targetDeviceId}`);
+    const targetDeviceId = deviceId || 'phone-link-device';
+    log.info(`📱 Creating Phone Link test data for device: ${targetDeviceId}`);
     
     return await this.syncMessagesFromDevice(targetDeviceId);
   }
 
-  /**
-   * Parse SMS database from iTunes backup
-   */
-  private async parseSMSDatabase(backupPath: string): Promise<ParsedMessage[]> {
-    // This would parse the actual SMS.db file from iTunes backup
-    // The SMS database is typically located at:
-    // ~/Library/Application Support/MobileSync/Backup/[device]/3d0d7e5fb2ce288813306e4d4636395e047a3d28
-    
-    // For demonstration, return mock data
-    return this.generateMockMessages();
-  }
-
-  /**
-   * Parse iMessage database from iTunes backup
-   */
-  private async parseIMessageDatabase(backupPath: string): Promise<ParsedMessage[]> {
-    // This would parse the actual chat.db file from iTunes backup
-    // The iMessage database is typically located at:
-    // ~/Library/Application Support/MobileSync/Backup/[device]/31bb7ba8914766d4ba40d6dfb6113c8b614be442
-    
-    return [];
-  }
+  // Removed iTunes backup parsing - using Phone Link only
 
   /**
    * Import a single parsed message into the database

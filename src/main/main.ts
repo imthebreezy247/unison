@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import { fileURLToPath } from 'url';
 import log from 'electron-log';
 import { DatabaseManager } from './database/DatabaseManager';
-import { DirectiPhoneManager } from './services/DirectiPhoneManager';
+import { DeviceManager } from './services/DeviceManager';
 import { NotificationManager } from './services/NotificationManager';
 import { ContactSyncService } from './services/ContactSyncService';
 import { ContactImportExportService } from './services/ContactImportExportService';
@@ -21,7 +21,7 @@ class UnisonXApp {
   private mainWindow: BrowserWindow | null = null;
   private tray: Tray | null = null;
   private databaseManager: DatabaseManager;
-  private deviceManager: DirectiPhoneManager;
+  private deviceManager: DeviceManager;
   private notificationManager: NotificationManager;
   private contactSyncService: ContactSyncService;
   private contactImportExportService: ContactImportExportService;
@@ -32,7 +32,7 @@ class UnisonXApp {
 
   constructor() {
     this.databaseManager = new DatabaseManager();
-    this.deviceManager = new DirectiPhoneManager();
+    this.deviceManager = new DeviceManager(this.databaseManager);
     this.notificationManager = new NotificationManager();
     this.contactSyncService = new ContactSyncService(this.databaseManager);
     this.contactImportExportService = new ContactImportExportService(this.databaseManager);
@@ -999,43 +999,44 @@ class UnisonXApp {
 
   private async initializeServices(): Promise<void> {
     try {
+      log.info('🚀 Starting UnisonX with Phone Link bridge only');
+      
       // Initialize database
       await this.databaseManager.initialize();
-      log.info('Database initialized successfully');
+      log.info('✅ Database initialized');
 
-      // Initialize device manager
+      // Initialize Phone Link device manager (simplified)
       await this.deviceManager.initialize();
-      log.info('Device manager initialized successfully');
+      log.info('✅ Phone Link device manager initialized');
 
       // Set up device manager event forwarding
       this.setupDeviceManagerEvents();
 
       // Initialize notification manager
       await this.notificationManager.initialize();
-      log.info('Notification manager initialized successfully');
+      log.info('✅ Notification manager initialized');
 
       // Initialize contact sync service
       await this.contactSyncService.initialize();
-      log.info('Contact sync service initialized successfully');
+      log.info('✅ Contact sync service initialized');
 
-      // Initialize message sync service
+      // Initialize Phone Link message sync service
       await this.messageSyncService.initialize();
-      log.info('Message sync service initialized successfully');
+      log.info('✅ Phone Link message service initialized');
 
       // Initialize call log service
       await this.callLogService.initialize();
-      log.info('Call log service initialized successfully');
+      log.info('✅ Call log service initialized');
 
       // Initialize file manager service
       await this.fileManagerService.initialize();
-      log.info('File manager service initialized successfully');
+      log.info('✅ File manager service initialized');
 
       // Initialize settings service
       await this.settingsService.initialize();
-      log.info('Settings service initialized successfully');
+      log.info('✅ Settings service initialized');
 
-      // DirectiPhoneManager automatically starts scanning during initialization
-      log.info('DirectiPhoneManager scanning started automatically');
+      log.info('📱 UnisonX ready for Phone Link messaging!');
 
     } catch (error) {
       log.error('Failed to initialize services:', error);
@@ -1044,6 +1045,7 @@ class UnisonXApp {
 
   private async cleanup(): Promise<void> {
     try {
+      log.info('🧹 Cleaning up UnisonX services...');
       await this.deviceManager.cleanup();
       this.contactSyncService.cleanup();
       this.messageSyncService.cleanup();

@@ -2,7 +2,14 @@ import { EventEmitter } from 'events';
 import * as crypto from 'crypto';
 import log from 'electron-log';
 import { DatabaseManager, Contact } from '../database/DatabaseManager';
-import { BackupParser, ContactData } from './iphone/BackupParser';
+// Removed BackupParser import - using Phone Link only
+export interface ContactData {
+  id: string;
+  firstName: string;
+  lastName: string;
+  phoneNumbers: { number: string; type: string }[];
+  emails: { email: string; type: string }[];
+}
 
 export interface ContactSyncOptions {
   autoSync: boolean;
@@ -166,12 +173,13 @@ export class ContactSyncService extends EventEmitter {
         return result;
       }
 
-      const parser = new BackupParser(backupPath);
-      const deviceContacts = await parser.extractContacts();
+      // BackupParser removed - Phone Link only
+      log.info('📱 Contact sync via Phone Link not yet implemented');
+      const deviceContacts: ContactData[] = []; // Empty for now
       result.totalContacts = deviceContacts.length;
 
       if (deviceContacts.length === 0) {
-        log.warn('No contacts found in device backup');
+        log.warn('Phone Link contact sync not implemented yet');
         return result;
       }
 
@@ -208,7 +216,7 @@ export class ContactSyncService extends EventEmitter {
       this.emit('sync-completed', result);
       log.info(`Contact sync completed: ${result.newContacts} new, ${result.updatedContacts} updated, ${result.duplicatesFound} duplicates`);
 
-      parser.cleanup();
+      // parser.cleanup(); // Removed
       return result;
 
     } catch (error) {
