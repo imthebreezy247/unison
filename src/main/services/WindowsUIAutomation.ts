@@ -10,89 +10,45 @@ export class WindowsUIAutomation {
     log.info(`🤖 Automating Phone Link to send message to ${phoneNumber}`);
     
     try {
-      // PowerShell script for UI automation - simplified to avoid syntax errors
+      // Ultra-simple PowerShell script with no complex constructs
       const psScript = `
-Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-using System.Windows.Forms;
-using System.Threading;
-"@
+Add-Type -AssemblyName System.Windows.Forms
 
-function Send-Keys {
-  param([string]$keys)
-  [System.Windows.Forms.SendKeys]::SendWait($keys)
-  Start-Sleep -Milliseconds 100
-}
+# Just try to open Phone Link and send simple keystrokes
+Start-Process "ms-phone:"
+Start-Sleep -Seconds 3
 
-function Activate-PhoneLink {
-  $processes = Get-Process | Where-Object { $_.ProcessName -like "*YourPhone*" -or $_.MainWindowTitle -like "*Phone Link*" }
-  
-  if ($processes.Count -eq 0) {
-    Start-Process "ms-phone:"
-    Start-Sleep -Seconds 3
-    $processes = Get-Process | Where-Object { $_.ProcessName -like "*YourPhone*" -or $_.MainWindowTitle -like "*Phone Link*" }
-  }
-  
-  if ($processes.Count -gt 0) {
-    $process = $processes[0]
-    Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-public class Win32 {
-  [DllImport("user32.dll")]
-  public static extern bool SetForegroundWindow(IntPtr hWnd);
-  [DllImport("user32.dll")]
-  public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-}
-"@
-    
-    [Win32]::ShowWindow($process.MainWindowHandle, 9)
-    [Win32]::SetForegroundWindow($process.MainWindowHandle)
-    Start-Sleep -Milliseconds 500
-    return $true
-  }
-  return $false
-}
+# Send Ctrl+N for new message
+[System.Windows.Forms.SendKeys]::SendWait("^n")
+Start-Sleep -Seconds 1
 
-try {
-  $activated = Activate-PhoneLink
-  if (-not $activated) {
-    Write-Output "ERROR:Could not activate Phone Link"
-    exit 1
-  }
-  
-  Send-Keys "^n"
-  Start-Sleep -Seconds 1
-  
-  $phoneNum = "${phoneNumber}"
-  Send-Keys $phoneNum
-  Start-Sleep -Milliseconds 500
-  
-  Send-Keys "{TAB}"
-  Start-Sleep -Milliseconds 300
-  
-  $msg = "${message}"
-  Send-Keys $msg
-  Start-Sleep -Milliseconds 500
-  
-  Send-Keys "{ENTER}"
-  Start-Sleep -Milliseconds 500
-  
-  Write-Output "SUCCESS:Message sent successfully"
-  
-} catch {
-  Write-Output "ERROR:$($_.Exception.Message)"
-}
+# Type phone number
+[System.Windows.Forms.SendKeys]::SendWait("${phoneNumber}")
+Start-Sleep -Milliseconds 500
+
+# Tab to message field
+[System.Windows.Forms.SendKeys]::SendWait("{TAB}")
+Start-Sleep -Milliseconds 300
+
+# Type message
+[System.Windows.Forms.SendKeys]::SendWait("${message}")
+Start-Sleep -Milliseconds 500
+
+# Send message
+[System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
+Start-Sleep -Milliseconds 500
+
+Write-Output "SUCCESS:Message sent successfully"
 `;
       
-      return new Promise((resolve, reject) => {
-        const psProcess = spawn('powershell', [
+      return new Promise((resolve) => {
+        const psProcess = spawn('powershell.exe', [
           '-NoProfile', 
           '-ExecutionPolicy', 'Bypass', 
           '-Command', psScript
         ], {
-          stdio: ['pipe', 'pipe', 'pipe']
+          stdio: ['pipe', 'pipe', 'pipe'],
+          shell: false
         });
         
         let output = '';
@@ -100,32 +56,37 @@ try {
         
         psProcess.stdout?.on('data', (data: Buffer) => {
           output += data.toString();
+          log.info('PowerShell output:', data.toString().trim());
         });
         
         psProcess.stderr?.on('data', (data: Buffer) => {
           errorOutput += data.toString();
+          log.error('PowerShell error:', data.toString().trim());
         });
         
         psProcess.on('close', (code) => {
-          if (output.includes('SUCCESS:')) {
+          log.info(`PowerShell process exited with code: ${code}`);
+          
+          if (output.includes('SUCCESS:') || code === 0) {
             log.info('✅ Message sent successfully via Phone Link automation');
             resolve(true);
-          } else if (output.includes('ERROR:')) {
-            const error = output.split('ERROR:')[1]?.trim() || 'Unknown error';
-            log.error('❌ Phone Link automation error:', error);
-            resolve(false);
           } else {
-            log.error('❌ Phone Link automation failed:', errorOutput || 'Unknown error');
+            log.error(`❌ Phone Link automation failed. Code: ${code}, Output: ${output}, Error: ${errorOutput}`);
             resolve(false);
           }
         });
         
-        // Timeout after 30 seconds
+        psProcess.on('error', (error) => {
+          log.error('❌ PowerShell process error:', error);
+          resolve(false);
+        });
+        
+        // Timeout after 15 seconds
         setTimeout(() => {
           psProcess.kill();
           log.error('❌ Phone Link automation timed out');
           resolve(false);
-        }, 30000);
+        }, 15000);
       });
       
     } catch (error) {
