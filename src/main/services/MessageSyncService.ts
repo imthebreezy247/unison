@@ -37,10 +37,11 @@ export interface ParsedMessage {
 
 export class MessageSyncService {
   private databaseManager: DatabaseManager;
-  private phoneLinkBridge: PhoneLinkBridge | null = null;
+  private phoneLinkBridge: PhoneLinkBridge;
 
-  constructor(databaseManager: DatabaseManager) {
+  constructor(databaseManager: DatabaseManager, phoneLinkBridge: PhoneLinkBridge) {
     this.databaseManager = databaseManager;
+    this.phoneLinkBridge = phoneLinkBridge;
   }
 
   async initialize(): Promise<void> {
@@ -52,9 +53,12 @@ export class MessageSyncService {
 
   private async initializePhoneLinkBridge(): Promise<void> {
     try {
-      log.info('🔗 Initializing Phone Link Bridge for real-time messaging...');
+      log.info('🔗 Connecting to shared Phone Link Bridge for real-time messaging...');
       
-      this.phoneLinkBridge = new PhoneLinkBridge();
+      // Phone Link Bridge is already created and passed in constructor
+      if (!this.phoneLinkBridge) {
+        throw new Error('Phone Link Bridge not provided!');
+      }
       
       // Listen for incoming messages from Phone Link
       this.phoneLinkBridge.on('message-received', async (messageData: PhoneLinkMessage) => {
@@ -67,9 +71,9 @@ export class MessageSyncService {
         }
       });
       
-      log.info('✅ Phone Link Bridge initialized successfully');
+      log.info('✅ Connected to Phone Link Bridge successfully');
     } catch (error) {
-      log.error('❌ Failed to initialize Phone Link Bridge:', error);
+      log.error('❌ Failed to connect to Phone Link Bridge:', error);
       // Continue without Phone Link bridge - app should still work
     }
   }

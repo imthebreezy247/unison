@@ -12,6 +12,7 @@ import { MessageSyncService } from './services/MessageSyncService';
 import { CallLogService } from './services/CallLogService';
 import { FileManagerService } from './services/FileManagerService';
 import { SettingsService } from './services/SettingsService';
+import { PhoneLinkBridge } from './services/PhoneLinkBridge';
 
 // Configure logging
 log.transports.file.level = 'info';
@@ -21,6 +22,7 @@ class UnisonXApp {
   private mainWindow: BrowserWindow | null = null;
   private tray: Tray | null = null;
   private databaseManager: DatabaseManager;
+  private phoneLinkBridge: PhoneLinkBridge;
   private deviceManager: DeviceManager;
   private notificationManager: NotificationManager;
   private contactSyncService: ContactSyncService;
@@ -32,11 +34,15 @@ class UnisonXApp {
 
   constructor() {
     this.databaseManager = new DatabaseManager();
-    this.deviceManager = new DeviceManager(this.databaseManager);
+    
+    // Create ONE Phone Link Bridge instance to share across all services
+    this.phoneLinkBridge = new PhoneLinkBridge();
+    
+    this.deviceManager = new DeviceManager(this.databaseManager, this.phoneLinkBridge);
     this.notificationManager = new NotificationManager();
     this.contactSyncService = new ContactSyncService(this.databaseManager);
     this.contactImportExportService = new ContactImportExportService(this.databaseManager);
-    this.messageSyncService = new MessageSyncService(this.databaseManager);
+    this.messageSyncService = new MessageSyncService(this.databaseManager, this.phoneLinkBridge);
     this.callLogService = new CallLogService(this.databaseManager);
     this.fileManagerService = new FileManagerService(this.databaseManager);
     this.settingsService = new SettingsService(this.databaseManager);

@@ -27,10 +27,10 @@ export class DeviceManager extends EventEmitter {
   private phoneLinkBridge: PhoneLinkBridge;
   private databaseManager: DatabaseManager;
 
-  constructor(databaseManager: DatabaseManager) {
+  constructor(databaseManager: DatabaseManager, phoneLinkBridge: PhoneLinkBridge) {
     super();
     this.databaseManager = databaseManager;
-    this.phoneLinkBridge = new PhoneLinkBridge();
+    this.phoneLinkBridge = phoneLinkBridge;
   }
 
   async initialize(): Promise<void> {
