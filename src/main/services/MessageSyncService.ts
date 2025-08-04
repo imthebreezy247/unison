@@ -442,9 +442,15 @@ export class MessageSyncService {
     // Try to send via Phone Link first
     let deliveryStatus = 0; // Assume failed initially
     
-    if (this.phoneLinkBridge && messageType === 'sms') {
+    // Debug logging
+    log.info(`🔍 Debug: phoneLinkBridge exists? ${!!this.phoneLinkBridge}`);
+    log.info(`🔍 Debug: messageType = "${messageType}"`);
+    log.info(`🔍 Debug: condition check = ${!!this.phoneLinkBridge && (messageType === 'sms' || messageType === 'imessage')}`);
+    
+    // Support both SMS and iMessage types via Phone Link
+    if (this.phoneLinkBridge && (messageType === 'sms' || messageType === 'imessage')) {
       try {
-        log.info(`🚀 Attempting to send message via Phone Link to ${phoneNumber}`);
+        log.info(`🚀 Attempting to send ${messageType} via Phone Link to ${phoneNumber}`);
         const success = await this.phoneLinkBridge.sendMessage(phoneNumber, content);
         
         if (success) {
@@ -457,7 +463,7 @@ export class MessageSyncService {
         log.error('❌ Phone Link send error:', error);
       }
     } else {
-      log.info('📝 Phone Link not available, saving message locally only');
+      log.info(`📝 Phone Link not available (bridge: ${!!this.phoneLinkBridge}, type: ${messageType}), saving message locally only`);
     }
     
     // Save to database regardless of send success
