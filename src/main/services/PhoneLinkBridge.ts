@@ -82,59 +82,37 @@ export class PhoneLinkBridge extends EventEmitter {
   }
 
   private monitorWindowsNotifications(): void {
-    log.info('🔔 Setting up Windows notification monitoring...');
+    log.info('🔔 Setting up simplified Phone Link monitoring...');
     
-    // PowerShell script to monitor notifications
+    // Simplified PowerShell script - focus on Phone Link process detection
     const psScript = `
-      Add-Type @"
-        using System;
-        using System.Runtime.InteropServices;
-        using Windows.UI.Notifications.Management;
-        using Windows.Foundation.Collections;
-      "@
-      
-      try {
-        $listener = [Windows.UI.Notifications.Management.UserNotificationListener]::Current
-        $access = $listener.RequestAccessAsync().GetAwaiter().GetResult()
-        
-        if ($access -eq [Windows.UI.Notifications.Management.UserNotificationListenerAccessStatus]::Allowed) {
-          Write-Output "MONITOR_READY"
-          
-          while($true) {
-            try {
-              $notifications = $listener.GetNotificationsAsync([Windows.UI.Notifications.NotificationKinds]::Toast).GetAwaiter().GetResult()
-              
-              foreach($notification in $notifications) {
-                $appName = $notification.AppInfo.DisplayInfo.DisplayName
-                
-                if($appName -like "*Phone Link*" -or $appName -like "*Your Phone*") {
-                  try {
-                    $binding = $notification.Notification.Visual.GetBinding("ToastGeneric")
-                    if($binding -ne $null) {
-                      $textElements = $binding.GetTextElements()
-                      if($textElements.Count -gt 0) {
-                        $text = $textElements[0].Text
-                        Write-Output "PHONE_LINK_MESSAGE:$text"
-                      }
-                    }
-                  } catch {
-                    # Ignore individual notification parsing errors
-                  }
-                }
-              }
-            } catch {
-              # Ignore notification polling errors and continue
-            }
-            
-            Start-Sleep -Milliseconds 1000
-          }
-        } else {
-          Write-Output "ACCESS_DENIED"
-        }
-      } catch {
-        Write-Output "SETUP_ERROR:$($_.Exception.Message)"
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+"@
+
+try {
+  Write-Output "MONITOR_READY"
+  
+  while($true) {
+    try {
+      # Check if Phone Link is running
+      $phoneLink = Get-Process -Name "PhoneExperienceHost" -ErrorAction SilentlyContinue
+      if ($phoneLink) {
+        Write-Output "PHONE_LINK_RUNNING"
+      } else {
+        Write-Output "PHONE_LINK_STOPPED"
       }
-    `;
+    } catch {
+      # Ignore errors and continue
+    }
+    
+    Start-Sleep -Seconds 5
+  }
+} catch {
+  Write-Output "SETUP_ERROR:$($_.Exception.Message)"
+}
+`;
 
     // Start PowerShell process
     const psProcess = spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', psScript], {
@@ -147,12 +125,11 @@ export class PhoneLinkBridge extends EventEmitter {
       const output = data.toString().trim();
       
       if (output === 'MONITOR_READY') {
-        log.info('✅ Notification monitoring ready');
-      } else if (output === 'ACCESS_DENIED') {
-        log.warn('⚠️  Notification access denied - some features may not work');
-      } else if (output.startsWith('PHONE_LINK_MESSAGE:')) {
-        const messageContent = output.replace('PHONE_LINK_MESSAGE:', '');
-        this.processIncomingMessage(messageContent);
+        log.info('✅ Phone Link monitoring ready');
+      } else if (output === 'PHONE_LINK_RUNNING') {
+        log.debug('📱 Phone Link is running');
+      } else if (output === 'PHONE_LINK_STOPPED') {
+        log.debug('⚠️  Phone Link stopped');
       } else if (output.startsWith('SETUP_ERROR:')) {
         log.error('PowerShell setup error:', output);
       }
@@ -293,11 +270,17 @@ export class PhoneLinkBridge extends EventEmitter {
 
   public async isPhoneLinkRunning(): Promise<boolean> {
     return new Promise((resolve) => {
-      exec('tasklist /FI "IMAGENAME eq YourPhone.exe" /FO CSV /NH', (error, stdout) => {
+      // Check for Phone Link process (PhoneExperienceHost.exe is the main Phone Link process)
+      exec('tasklist /FI "IMAGENAME eq PhoneExperienceHost.exe" /FO CSV /NH', (error, stdout) => {
         if (error) {
           resolve(false);
         } else {
-          const isRunning = stdout.includes('YourPhone.exe');
+          const isRunning = stdout.includes('PhoneExperienceHost.exe');
+          if (isRunning) {
+            log.info('✅ Phone Link process detected');
+          } else {
+            log.debug('❌ Phone Link process not found');
+          }
           resolve(isRunning);
         }
       });
@@ -308,11 +291,11 @@ export class PhoneLinkBridge extends EventEmitter {
     log.info('🔄 Restarting Phone Link...');
     
     // Kill existing Phone Link process
-    exec('taskkill /F /IM YourPhone.exe', () => {
+    exec('taskkill /F /IM PhoneExperienceHost.exe', () => {
       // Wait a moment then restart
       setTimeout(async () => {
         await this.startPhoneLinkHidden();
-      }, 1000);
+      }, 2000);
     });
   }
 
