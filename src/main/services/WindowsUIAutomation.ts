@@ -10,94 +10,81 @@ export class WindowsUIAutomation {
     log.info(`🤖 Automating Phone Link to send message to ${phoneNumber}`);
     
     try {
-      // PowerShell script for UI automation
+      // PowerShell script for UI automation - simplified to avoid syntax errors
       const psScript = `
-        Add-Type @"
-          using System;
-          using System.Runtime.InteropServices;
-          using System.Windows.Forms;
-          using System.Threading;
-        "@
-        
-        # Function to send keys
-        function Send-Keys {
-          param([string]$keys)
-          [System.Windows.Forms.SendKeys]::SendWait($keys)
-          Start-Sleep -Milliseconds 100
-        }
-        
-        # Function to find and activate Phone Link window
-        function Activate-PhoneLink {
-          $processes = Get-Process | Where-Object { $_.ProcessName -like "*YourPhone*" -or $_.MainWindowTitle -like "*Phone Link*" }
-          
-          if ($processes.Count -eq 0) {
-            # Start Phone Link if not running
-            Start-Process "ms-phone:"
-            Start-Sleep -Seconds 3
-            $processes = Get-Process | Where-Object { $_.ProcessName -like "*YourPhone*" -or $_.MainWindowTitle -like "*Phone Link*" }
-          }
-          
-          if ($processes.Count -gt 0) {
-            $process = $processes[0]
-            
-            # Bring window to front
-            Add-Type @"
-              using System;
-              using System.Runtime.InteropServices;
-              public class Win32 {
-                [DllImport("user32.dll")]
-                public static extern bool SetForegroundWindow(IntPtr hWnd);
-                [DllImport("user32.dll")]
-                public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-              }
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+using System.Windows.Forms;
+using System.Threading;
 "@
-            
-            [Win32]::ShowWindow($process.MainWindowHandle, 9) # SW_RESTORE
-            [Win32]::SetForegroundWindow($process.MainWindowHandle)
-            Start-Sleep -Milliseconds 500
-            return $true
-          }
-          return $false
-        }
-        
-        try {
-          # Activate Phone Link
-          $activated = Activate-PhoneLink
-          if (-not $activated) {
-            Write-Output "ERROR:Could not activate Phone Link"
-            exit 1
-          }
-          
-          # Try Ctrl+N for new message
-          Send-Keys "^n"
-          Start-Sleep -Seconds 1
-          
-          # Type phone number
-          Send-Keys "${phoneNumber}"
-          Start-Sleep -Milliseconds 500
-          
-          # Tab to message field
-          Send-Keys "{TAB}"
-          Start-Sleep -Milliseconds 300
-          
-          # Type message (escape special characters)
-          $escapedMessage = "${message}" -replace '[+^%~(){}]', '{$&}'
-          Send-Keys $escapedMessage
-          Start-Sleep -Milliseconds 500
-          
-          # Send message (Enter)
-          Send-Keys "{ENTER}"
-          Start-Sleep -Milliseconds 500
-          
-          # Minimize Phone Link
-          Send-Keys "%{F9}" # Alt+F9 or use minimize
-          
-          Write-Output "SUCCESS:Message sent successfully"
-          
-        } catch {
-          Write-Output "ERROR:$($_.Exception.Message)"
-        }
-      `;
+
+function Send-Keys {
+  param([string]$keys)
+  [System.Windows.Forms.SendKeys]::SendWait($keys)
+  Start-Sleep -Milliseconds 100
+}
+
+function Activate-PhoneLink {
+  $processes = Get-Process | Where-Object { $_.ProcessName -like "*YourPhone*" -or $_.MainWindowTitle -like "*Phone Link*" }
+  
+  if ($processes.Count -eq 0) {
+    Start-Process "ms-phone:"
+    Start-Sleep -Seconds 3
+    $processes = Get-Process | Where-Object { $_.ProcessName -like "*YourPhone*" -or $_.MainWindowTitle -like "*Phone Link*" }
+  }
+  
+  if ($processes.Count -gt 0) {
+    $process = $processes[0]
+    Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public class Win32 {
+  [DllImport("user32.dll")]
+  public static extern bool SetForegroundWindow(IntPtr hWnd);
+  [DllImport("user32.dll")]
+  public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+}
+"@
+    
+    [Win32]::ShowWindow($process.MainWindowHandle, 9)
+    [Win32]::SetForegroundWindow($process.MainWindowHandle)
+    Start-Sleep -Milliseconds 500
+    return $true
+  }
+  return $false
+}
+
+try {
+  $activated = Activate-PhoneLink
+  if (-not $activated) {
+    Write-Output "ERROR:Could not activate Phone Link"
+    exit 1
+  }
+  
+  Send-Keys "^n"
+  Start-Sleep -Seconds 1
+  
+  $phoneNum = "${phoneNumber}"
+  Send-Keys $phoneNum
+  Start-Sleep -Milliseconds 500
+  
+  Send-Keys "{TAB}"
+  Start-Sleep -Milliseconds 300
+  
+  $msg = "${message}"
+  Send-Keys $msg
+  Start-Sleep -Milliseconds 500
+  
+  Send-Keys "{ENTER}"
+  Start-Sleep -Milliseconds 500
+  
+  Write-Output "SUCCESS:Message sent successfully"
+  
+} catch {
+  Write-Output "ERROR:$($_.Exception.Message)"
+}
+`;
       
       return new Promise((resolve, reject) => {
         const psProcess = spawn('powershell', [
