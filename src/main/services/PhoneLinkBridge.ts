@@ -229,7 +229,7 @@ try {
   }
 
   public async sendMessage(to: string, message: string): Promise<boolean> {
-    log.info(`📤 Sending message via Phone Link to ${to}: "${message}"`);
+    log.info(`📤 FAST sending to ${to}: "${message}"`);
     
     if (!this.isRunning) {
       log.error('Phone Link is not running');
@@ -237,11 +237,12 @@ try {
     }
 
     try {
-      // Use Windows UI automation to send the message
-      const success = await this.uiAutomation.sendMessageThroughPhoneLink(to, message);
+      // Method 1: Try PowerShell (faster)
+      log.info('🚀 Trying PowerShell automation...');
+      let success = await this.uiAutomation.sendMessageThroughPhoneLink(to, message);
       
       if (success) {
-        log.info('✅ Message sent successfully via Phone Link');
+        log.info('✅ PowerShell method worked!');
         
         // Remove from queue if it was queued
         this.messageQueue = this.messageQueue.filter(
@@ -249,19 +250,35 @@ try {
         );
         
         return true;
-      } else {
-        log.error('❌ Failed to send message via UI automation');
-        
-        // Add to queue for retry
-        this.messageQueue.push({
-          to,
-          message,
-          timestamp: new Date(),
-          retryCount: 0
-        });
-        
-        return false;
       }
+      
+      // Method 2: Fallback to VBScript
+      log.info('🔄 Trying VBScript fallback...');
+      success = await this.uiAutomation.sendMessageViaVBScript(to, message);
+      
+      if (success) {
+        log.info('✅ VBScript method worked!');
+        
+        // Remove from queue if it was queued
+        this.messageQueue = this.messageQueue.filter(
+          msg => !(msg.to === to && msg.message === message)
+        );
+        
+        return true;
+      }
+      
+      log.error('❌ Both automation methods failed');
+      
+      // Add to queue for retry
+      this.messageQueue.push({
+        to,
+        message,
+        timestamp: new Date(),
+        retryCount: 0
+      });
+      
+      return false;
+      
     } catch (error) {
       log.error('Failed to send message via Phone Link:', error);
       return false;
