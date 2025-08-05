@@ -41,14 +41,26 @@ Start-Sleep -Milliseconds 150
 
 # TYPE MESSAGE
 [System.Windows.Forms.SendKeys]::SendWait("${message.replace(/"/g, '""')}")
-Start-Sleep -Milliseconds 200
+Start-Sleep -Milliseconds 500
 
-# SEND MESSAGE - ENTER KEY
+# SEND MESSAGE - BETTER ENTER KEY HANDLING
+# Give message time to settle in the field
+Start-Sleep -Milliseconds 800
+
+# Try Ctrl+Enter first (most reliable)
+[System.Windows.Forms.SendKeys]::SendWait("^{ENTER}")
+Start-Sleep -Milliseconds 500
+
+# If that didn't work, try regular Enter
 [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
 Start-Sleep -Milliseconds 300
 
-# MINIMIZE PHONE LINK
-[System.Windows.Forms.SendKeys]::SendWait("%{F9}")
+# Double-tap Enter just to be sure
+[System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
+Start-Sleep -Milliseconds 1000
+
+# MINIMIZE PHONE LINK (optional, removing Alt+F9 as it might interfere)
+# [System.Windows.Forms.SendKeys]::SendWait("%{F9}")
 
 Write-Output "SUCCESS"
 `;
@@ -94,12 +106,12 @@ Write-Output "SUCCESS"
           resolve(false);
         });
         
-        // Timeout after 6 seconds (much faster)
+        // Timeout after 10 seconds to allow for ENTER key delays
         setTimeout(() => {
           psProcess.kill();
-          log.error('❌ Phone Link automation timed out (6 seconds)');
+          log.error('❌ Phone Link automation timed out (10 seconds)');
           resolve(false);
-        }, 6000);
+        }, 10000);
       });
       
     } catch (error) {
