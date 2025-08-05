@@ -24,6 +24,7 @@ using System;
 using System.Windows.Automation;
 using System.Threading;
 using System.Diagnostics;
+using System.Linq;
 
 public class PhoneLinkAutomation
 {
@@ -137,7 +138,7 @@ public class PhoneLinkAutomation
         }
     }
 }
-"@ -ReferencedAssemblies System.Windows.Forms
+"@ -ReferencedAssemblies System.Windows.Forms, UIAutomationClient, UIAutomationTypes
 
 # Execute the automation
 [PhoneLinkAutomation]::SendMessage("${phoneNumber}", "${message}")
@@ -174,6 +175,7 @@ Add-Type @"
 using System;
 using System.Windows.Automation;
 using System.Threading;
+using System.Linq;
 
 public class PhoneLinkMonitor
 {
@@ -232,7 +234,7 @@ public class PhoneLinkMonitor
         }
     }
 }
-"@
+"@ -ReferencedAssemblies UIAutomationClient, UIAutomationTypes
 
 [PhoneLinkMonitor]::Monitor()
 `;

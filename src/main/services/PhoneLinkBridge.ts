@@ -4,6 +4,7 @@ import log from 'electron-log';
 import * as path from 'path';
 import { WindowsUIAutomation } from './WindowsUIAutomation';
 import { PhoneLinkAccessibility } from './PhoneLinkAccessibility';
+import { PhoneLinkNotificationMonitor } from './PhoneLinkNotificationMonitor';
 
 export interface PhoneLinkMessage {
   from: string;
@@ -20,12 +21,14 @@ export class PhoneLinkBridge extends EventEmitter {
   private isMonitoring = false;
   private uiAutomation: WindowsUIAutomation;
   private accessibility: PhoneLinkAccessibility;
+  private notificationMonitor: PhoneLinkNotificationMonitor;
 
   constructor() {
     super();
     log.info('🔗 Initializing Phone Link Bridge...');
     this.uiAutomation = new WindowsUIAutomation();
     this.accessibility = new PhoneLinkAccessibility();
+    this.notificationMonitor = new PhoneLinkNotificationMonitor();
     this.initialize();
     
     // Listen for accessibility events
@@ -35,6 +38,12 @@ export class PhoneLinkBridge extends EventEmitter {
     
     this.accessibility.on('message-count', (data) => {
       log.info('📊 Message count update:', data);
+    });
+    
+    // Listen for incoming messages from notification monitor
+    this.notificationMonitor.on('message-received', (message) => {
+      log.info('📨 Message received via notification monitor:', message);
+      this.emit('message-received', message);
     });
   }
 
@@ -80,13 +89,16 @@ export class PhoneLinkBridge extends EventEmitter {
     log.info('👂 Starting Phone Link message monitoring...');
     
     try {
-      // Method 1: Start accessibility monitoring (most reliable)
+      // Method 1: Start notification monitoring (most reliable for incoming messages)
+      this.notificationMonitor.startMonitoring();
+      
+      // Method 2: Start accessibility monitoring (for UI changes)
       this.accessibility.startAccessibilityMonitoring();
       
-      // Method 2: Monitor Windows notifications (backup)
+      // Method 3: Monitor Windows notifications (backup)
       this.monitorWindowsNotifications();
       
-      // Method 3: Poll for changes every 2 seconds
+      // Method 4: Poll for changes every 2 seconds
       this.startPolling();
       
       this.isMonitoring = true;
@@ -365,7 +377,8 @@ try {
       this.monitorProcess = null;
     }
     
-    // Stop accessibility monitoring
+    // Stop all monitoring
+    this.notificationMonitor.stopMonitoring();
     this.accessibility.stopAccessibilityMonitoring();
     
     this.removeAllListeners();
