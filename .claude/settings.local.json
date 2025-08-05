@@ -16,7 +16,12 @@
       "Bash(ls:*)",
       "Bash(rm:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(powershell.exe:*)",
+      "Bash(cmd.exe /c \"dir %LOCALAPPDATA%\\Packages\\*Phone* /b 2>nul\")",
+      "Bash(cmd.exe /c \"C:\\Users\\shann\\projects\\unison\\find-phone-link-data.bat\")",
+      "Bash(cp:*)",
+      "Bash(cmd.exe /c \"C:\\Users\\shann\\Desktop\\find-phone-link-data.bat\")"
     ],
     "deny": []
   }

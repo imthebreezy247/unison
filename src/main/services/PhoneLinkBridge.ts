@@ -3,6 +3,7 @@ import { EventEmitter } from 'events';
 import log from 'electron-log';
 import * as path from 'path';
 import { WindowsUIAutomation } from './WindowsUIAutomation';
+import { PhoneLinkAccessibility } from './PhoneLinkAccessibility';
 
 export interface PhoneLinkMessage {
   from: string;
@@ -18,12 +19,23 @@ export class PhoneLinkBridge extends EventEmitter {
   private monitorProcess: any = null;
   private isMonitoring = false;
   private uiAutomation: WindowsUIAutomation;
+  private accessibility: PhoneLinkAccessibility;
 
   constructor() {
     super();
     log.info('🔗 Initializing Phone Link Bridge...');
     this.uiAutomation = new WindowsUIAutomation();
+    this.accessibility = new PhoneLinkAccessibility();
     this.initialize();
+    
+    // Listen for accessibility events
+    this.accessibility.on('ui-change', (data) => {
+      log.info('📱 Phone Link UI changed:', data);
+    });
+    
+    this.accessibility.on('message-count', (data) => {
+      log.info('📊 Message count update:', data);
+    });
   }
 
   private async initialize() {
@@ -68,10 +80,13 @@ export class PhoneLinkBridge extends EventEmitter {
     log.info('👂 Starting Phone Link message monitoring...');
     
     try {
-      // Method 1: Monitor Windows notifications
+      // Method 1: Start accessibility monitoring (most reliable)
+      this.accessibility.startAccessibilityMonitoring();
+      
+      // Method 2: Monitor Windows notifications (backup)
       this.monitorWindowsNotifications();
       
-      // Method 2: Poll for changes every 2 seconds
+      // Method 3: Poll for changes every 2 seconds
       this.startPolling();
       
       this.isMonitoring = true;
@@ -237,9 +252,24 @@ try {
     }
 
     try {
-      // Method 1: Try PowerShell (faster)
-      log.info('🚀 Trying PowerShell automation...');
-      let success = await this.uiAutomation.sendMessageThroughPhoneLink(to, message);
+      // Method 1: Try Accessibility API (most reliable)
+      log.info('🎯 Trying Accessibility API automation...');
+      let success = await this.accessibility.sendMessageViaAccessibility(to, message);
+      
+      if (success) {
+        log.info('✅ Accessibility API method worked!');
+        
+        // Remove from queue if it was queued
+        this.messageQueue = this.messageQueue.filter(
+          msg => !(msg.to === to && msg.message === message)
+        );
+        
+        return true;
+      }
+      
+      // Method 2: Try PowerShell (fallback)
+      log.info('🚀 Trying PowerShell automation fallback...');
+      success = await this.uiAutomation.sendMessageThroughPhoneLink(to, message);
       
       if (success) {
         log.info('✅ PowerShell method worked!');
@@ -252,7 +282,7 @@ try {
         return true;
       }
       
-      // Method 2: Fallback to VBScript
+      // Method 3: Fallback to VBScript
       log.info('🔄 Trying VBScript fallback...');
       success = await this.uiAutomation.sendMessageViaVBScript(to, message);
       
@@ -267,7 +297,7 @@ try {
         return true;
       }
       
-      log.error('❌ Both automation methods failed');
+      log.error('❌ All automation methods failed');
       
       // Add to queue for retry
       this.messageQueue.push({
@@ -334,6 +364,9 @@ try {
       this.monitorProcess.kill();
       this.monitorProcess = null;
     }
+    
+    // Stop accessibility monitoring
+    this.accessibility.stopAccessibilityMonitoring();
     
     this.removeAllListeners();
   }
