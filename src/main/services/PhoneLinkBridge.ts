@@ -6,6 +6,7 @@ import { WindowsUIAutomation } from './WindowsUIAutomation';
 import { PhoneLinkAccessibility } from './PhoneLinkAccessibility';
 import { PhoneLinkNotificationMonitor } from './PhoneLinkNotificationMonitor';
 import { PhoneLinkAPIInterceptor } from './PhoneLinkAPIInterceptor';
+import { PhoneLinkWindowsRT } from './PhoneLinkWindowsRT';
 
 export interface PhoneLinkMessage {
   from: string;
@@ -24,6 +25,7 @@ export class PhoneLinkBridge extends EventEmitter {
   private accessibility: PhoneLinkAccessibility;
   private notificationMonitor: PhoneLinkNotificationMonitor;
   private apiInterceptor: PhoneLinkAPIInterceptor;
+  private windowsRT: PhoneLinkWindowsRT;
 
   constructor() {
     super();
@@ -32,6 +34,7 @@ export class PhoneLinkBridge extends EventEmitter {
     this.accessibility = new PhoneLinkAccessibility();
     this.notificationMonitor = new PhoneLinkNotificationMonitor();
     this.apiInterceptor = new PhoneLinkAPIInterceptor();
+    this.windowsRT = new PhoneLinkWindowsRT();
     this.initialize();
     
     // Listen for accessibility events
@@ -279,9 +282,39 @@ try {
     }
 
     try {
-      // Method 1: Try API interception (most direct)
+      // Method 1: Try Windows Runtime APIs (most direct to system)
+      log.info('🪟 Trying Windows Runtime API method...');
+      let success = await this.windowsRT.sendMessageViaWindowsRT(to, message);
+      
+      if (success) {
+        log.info('✅ Windows Runtime API method worked!');
+        
+        // Remove from queue if it was queued
+        this.messageQueue = this.messageQueue.filter(
+          msg => !(msg.to === to && msg.message === message)
+        );
+        
+        return true;
+      }
+      
+      // Method 2: Try SMS Relay
+      log.info('📱 Trying SMS Relay method...');
+      success = await this.windowsRT.useSMSRelay(to, message);
+      
+      if (success) {
+        log.info('✅ SMS Relay method worked!');
+        
+        // Remove from queue if it was queued
+        this.messageQueue = this.messageQueue.filter(
+          msg => !(msg.to === to && msg.message === message)
+        );
+        
+        return true;
+      }
+      
+      // Method 3: Try API interception (network level)
       log.info('🕵️ Trying API interception method...');
-      let success = await this.apiInterceptor.sendMessageViaAPI(to, message);
+      success = await this.apiInterceptor.sendMessageViaAPI(to, message);
       
       if (success) {
         log.info('✅ API interception method worked!');
@@ -294,7 +327,7 @@ try {
         return true;
       }
       
-      // Method 2: Try Accessibility API (most reliable UI)
+      // Method 4: Try Accessibility API (UI level)
       log.info('🎯 Trying Accessibility API automation...');
       success = await this.accessibility.sendMessageViaAccessibility(to, message);
       
@@ -309,27 +342,12 @@ try {
         return true;
       }
       
-      // Method 3: Try PowerShell (fallback)
+      // Method 5: Try PowerShell (fallback)
       log.info('🚀 Trying PowerShell automation fallback...');
       success = await this.uiAutomation.sendMessageThroughPhoneLink(to, message);
       
       if (success) {
         log.info('✅ PowerShell method worked!');
-        
-        // Remove from queue if it was queued
-        this.messageQueue = this.messageQueue.filter(
-          msg => !(msg.to === to && msg.message === message)
-        );
-        
-        return true;
-      }
-      
-      // Method 4: Fallback to VBScript
-      log.info('🔄 Trying VBScript fallback...');
-      success = await this.uiAutomation.sendMessageViaVBScript(to, message);
-      
-      if (success) {
-        log.info('✅ VBScript method worked!');
         
         // Remove from queue if it was queued
         this.messageQueue = this.messageQueue.filter(
