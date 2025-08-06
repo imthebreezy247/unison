@@ -22,7 +22,8 @@
       "Bash(cmd.exe /c \"C:\\Users\\shann\\projects\\unison\\find-phone-link-data.bat\")",
       "Bash(cp:*)",
       "Bash(cmd.exe /c \"C:\\Users\\shann\\Desktop\\find-phone-link-data.bat\")",
-      "Bash(dig:*)"
+      "Bash(dig:*)",
+      "Bash(cmd.exe:*)"
     ],
     "deny": []
   }

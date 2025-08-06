@@ -5,6 +5,7 @@ import * as path from 'path';
 import { WindowsUIAutomation } from './WindowsUIAutomation';
 import { PhoneLinkAccessibility } from './PhoneLinkAccessibility';
 import { PhoneLinkNotificationMonitor } from './PhoneLinkNotificationMonitor';
+import { PhoneLinkAPIInterceptor } from './PhoneLinkAPIInterceptor';
 
 export interface PhoneLinkMessage {
   from: string;
@@ -22,6 +23,7 @@ export class PhoneLinkBridge extends EventEmitter {
   private uiAutomation: WindowsUIAutomation;
   private accessibility: PhoneLinkAccessibility;
   private notificationMonitor: PhoneLinkNotificationMonitor;
+  private apiInterceptor: PhoneLinkAPIInterceptor;
 
   constructor() {
     super();
@@ -29,6 +31,7 @@ export class PhoneLinkBridge extends EventEmitter {
     this.uiAutomation = new WindowsUIAutomation();
     this.accessibility = new PhoneLinkAccessibility();
     this.notificationMonitor = new PhoneLinkNotificationMonitor();
+    this.apiInterceptor = new PhoneLinkAPIInterceptor();
     this.initialize();
     
     // Listen for accessibility events
@@ -44,6 +47,15 @@ export class PhoneLinkBridge extends EventEmitter {
     this.notificationMonitor.on('message-received', (message) => {
       log.info('📨 Message received via notification monitor:', message);
       this.emit('message-received', message);
+    });
+    
+    // Listen for API interception events
+    this.apiInterceptor.on('server-discovered', (server) => {
+      log.info('🌐 Phone Link server discovered:', server);
+    });
+    
+    this.apiInterceptor.on('api-call-intercepted', (apiCall) => {
+      log.info('🕵️ API call intercepted:', apiCall);
     });
   }
 
@@ -89,16 +101,19 @@ export class PhoneLinkBridge extends EventEmitter {
     log.info('👂 Starting Phone Link message monitoring...');
     
     try {
-      // Method 1: Start notification monitoring (most reliable for incoming messages)
+      // Method 1: Start API interception (to find real endpoints)
+      await this.apiInterceptor.startInterception();
+      
+      // Method 2: Start notification monitoring (most reliable for incoming messages)
       this.notificationMonitor.startMonitoring();
       
-      // Method 2: Start accessibility monitoring (for UI changes)
+      // Method 3: Start accessibility monitoring (for UI changes)
       this.accessibility.startAccessibilityMonitoring();
       
-      // Method 3: Monitor Windows notifications (backup)
+      // Method 4: Monitor Windows notifications (backup)
       this.monitorWindowsNotifications();
       
-      // Method 4: Poll for changes every 2 seconds
+      // Method 5: Poll for changes every 2 seconds
       this.startPolling();
       
       this.isMonitoring = true;
@@ -264,9 +279,24 @@ try {
     }
 
     try {
-      // Method 1: Try Accessibility API (most reliable)
+      // Method 1: Try API interception (most direct)
+      log.info('🕵️ Trying API interception method...');
+      let success = await this.apiInterceptor.sendMessageViaAPI(to, message);
+      
+      if (success) {
+        log.info('✅ API interception method worked!');
+        
+        // Remove from queue if it was queued
+        this.messageQueue = this.messageQueue.filter(
+          msg => !(msg.to === to && msg.message === message)
+        );
+        
+        return true;
+      }
+      
+      // Method 2: Try Accessibility API (most reliable UI)
       log.info('🎯 Trying Accessibility API automation...');
-      let success = await this.accessibility.sendMessageViaAccessibility(to, message);
+      success = await this.accessibility.sendMessageViaAccessibility(to, message);
       
       if (success) {
         log.info('✅ Accessibility API method worked!');
@@ -279,7 +309,7 @@ try {
         return true;
       }
       
-      // Method 2: Try PowerShell (fallback)
+      // Method 3: Try PowerShell (fallback)
       log.info('🚀 Trying PowerShell automation fallback...');
       success = await this.uiAutomation.sendMessageThroughPhoneLink(to, message);
       
@@ -294,7 +324,7 @@ try {
         return true;
       }
       
-      // Method 3: Fallback to VBScript
+      // Method 4: Fallback to VBScript
       log.info('🔄 Trying VBScript fallback...');
       success = await this.uiAutomation.sendMessageViaVBScript(to, message);
       
@@ -309,7 +339,7 @@ try {
         return true;
       }
       
-      log.error('❌ All automation methods failed');
+      log.error('❌ All methods failed');
       
       // Add to queue for retry
       this.messageQueue.push({
@@ -377,7 +407,8 @@ try {
       this.monitorProcess = null;
     }
     
-    // Stop all monitoring
+    // Stop all monitoring and interception
+    this.apiInterceptor.stopInterception();
     this.notificationMonitor.stopMonitoring();
     this.accessibility.stopAccessibilityMonitoring();
     
