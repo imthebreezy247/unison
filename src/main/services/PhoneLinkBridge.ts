@@ -7,6 +7,8 @@ import { PhoneLinkAccessibility } from './PhoneLinkAccessibility';
 import { PhoneLinkNotificationMonitor } from './PhoneLinkNotificationMonitor';
 import { PhoneLinkAPIInterceptor } from './PhoneLinkAPIInterceptor';
 import { PhoneLinkWindowsRT } from './PhoneLinkWindowsRT';
+import { PhoneLinkSignalRHijacker } from './PhoneLinkSignalRHijacker';
+import { PhoneLinkProtocolHijacker } from './PhoneLinkProtocolHijacker';
 
 export interface PhoneLinkMessage {
   from: string;
@@ -26,6 +28,8 @@ export class PhoneLinkBridge extends EventEmitter {
   private notificationMonitor: PhoneLinkNotificationMonitor;
   private apiInterceptor: PhoneLinkAPIInterceptor;
   private windowsRT: PhoneLinkWindowsRT;
+  private signalRHijacker: PhoneLinkSignalRHijacker;
+  private protocolHijacker: PhoneLinkProtocolHijacker;
 
   constructor() {
     super();
@@ -35,6 +39,8 @@ export class PhoneLinkBridge extends EventEmitter {
     this.notificationMonitor = new PhoneLinkNotificationMonitor();
     this.apiInterceptor = new PhoneLinkAPIInterceptor();
     this.windowsRT = new PhoneLinkWindowsRT();
+    this.signalRHijacker = new PhoneLinkSignalRHijacker();
+    this.protocolHijacker = new PhoneLinkProtocolHijacker();
     this.initialize();
     
     // Listen for accessibility events
@@ -66,6 +72,15 @@ export class PhoneLinkBridge extends EventEmitter {
     try {
       // Start Phone Link in background
       await this.startPhoneLinkHidden();
+      
+      // Initialize SignalR hijacker
+      log.info('🔑 Starting SignalR hijacker initialization...');
+      try {
+        await this.signalRHijacker.initialize();
+        log.info('✅ SignalR hijacker initialized successfully');
+      } catch (hijackerError) {
+        log.error('❌ SignalR hijacker initialization failed:', hijackerError);
+      }
       
       // Start monitoring for messages
       await this.startMessageMonitoring();
@@ -274,7 +289,7 @@ try {
   }
 
   public async sendMessage(to: string, message: string): Promise<boolean> {
-    log.info(`📤 FAST sending to ${to}: "${message}"`);
+    log.info(`📤 HIJACKING Phone Link to send to ${to}: "${message}"`);
     
     if (!this.isRunning) {
       log.error('Phone Link is not running');
@@ -282,9 +297,54 @@ try {
     }
 
     try {
-      // Method 1: Try Windows Runtime APIs (most direct to system)
+      // Method 1: Try Protocol hijacking (MOST DIRECT)
+      log.info('🎯 Trying Phone Link Protocol hijacking...');
+      let success = await this.protocolHijacker.sendMessage(to, message);
+      
+      if (success) {
+        log.info('✅ Phone Link protocol hijacking worked! Message sent via protocols!');
+        
+        // Remove from queue if it was queued
+        this.messageQueue = this.messageQueue.filter(
+          msg => !(msg.to === to && msg.message === message)
+        );
+        
+        return true;
+      }
+      
+      // Method 2: Try Advanced Protocol hijacking with window interaction
+      log.info('💪 Trying Advanced Phone Link hijacking...');
+      success = await this.protocolHijacker.sendWithWindowInteraction(to, message);
+      
+      if (success) {
+        log.info('✅ Advanced Phone Link hijacking worked!');
+        
+        // Remove from queue if it was queued
+        this.messageQueue = this.messageQueue.filter(
+          msg => !(msg.to === to && msg.message === message)
+        );
+        
+        return true;
+      }
+      
+      // Method 3: Try SignalR/DLL hijacking
+      log.info('🚀 Trying Phone Link SignalR/DLL hijacking...');
+      success = await this.signalRHijacker.sendMessage(to, message);
+      
+      if (success) {
+        log.info('✅ Phone Link hijacking worked! Message sent via DLL/SignalR!');
+        
+        // Remove from queue if it was queued
+        this.messageQueue = this.messageQueue.filter(
+          msg => !(msg.to === to && msg.message === message)
+        );
+        
+        return true;
+      }
+      
+      // Method 4: Try Windows Runtime APIs
       log.info('🪟 Trying Windows Runtime API method...');
-      let success = await this.windowsRT.sendMessageViaWindowsRT(to, message);
+      success = await this.windowsRT.sendMessageViaWindowsRT(to, message);
       
       if (success) {
         log.info('✅ Windows Runtime API method worked!');
@@ -297,7 +357,7 @@ try {
         return true;
       }
       
-      // Method 2: Try SMS Relay
+      // Method 3: Try SMS Relay
       log.info('📱 Trying SMS Relay method...');
       success = await this.windowsRT.useSMSRelay(to, message);
       
@@ -312,7 +372,7 @@ try {
         return true;
       }
       
-      // Method 3: Try API interception (network level)
+      // Method 4: Try API interception (network level)
       log.info('🕵️ Trying API interception method...');
       success = await this.apiInterceptor.sendMessageViaAPI(to, message);
       
@@ -327,7 +387,7 @@ try {
         return true;
       }
       
-      // Method 4: Try Accessibility API (UI level)
+      // Method 5: Try Accessibility API (UI level)
       log.info('🎯 Trying Accessibility API automation...');
       success = await this.accessibility.sendMessageViaAccessibility(to, message);
       
@@ -342,7 +402,7 @@ try {
         return true;
       }
       
-      // Method 5: Try PowerShell (fallback)
+      // Method 6: Try PowerShell (fallback)
       log.info('🚀 Trying PowerShell automation fallback...');
       success = await this.uiAutomation.sendMessageThroughPhoneLink(to, message);
       
@@ -357,7 +417,7 @@ try {
         return true;
       }
       
-      log.error('❌ All methods failed');
+      log.error('❌ All Phone Link hijacking methods failed');
       
       // Add to queue for retry
       this.messageQueue.push({
