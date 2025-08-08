@@ -43,26 +43,60 @@ Start-Sleep -Milliseconds 150
 [System.Windows.Forms.SendKeys]::SendWait("${message.replace(/"/g, '""')}")
 Start-Sleep -Milliseconds 500
 
-# SEND MESSAGE - BETTER ENTER KEY HANDLING
+# CLICK THE ACTUAL SEND BUTTON
 # Give message time to settle in the field
-Start-Sleep -Milliseconds 800
-
-# Try Ctrl+Enter first (most reliable)
-[System.Windows.Forms.SendKeys]::SendWait("^{ENTER}")
 Start-Sleep -Milliseconds 500
 
-# If that didn't work, try regular Enter
-[System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
-Start-Sleep -Milliseconds 300
+# Load UI Automation assemblies for proper button clicking
+Add-Type -AssemblyName UIAutomationClient
+Add-Type -AssemblyName UIAutomationTypes
 
-# Double-tap Enter just to be sure
-[System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
-Start-Sleep -Milliseconds 1000
+try {
+  # Find Phone Link process
+  $phoneProcess = Get-Process -Name "PhoneExperienceHost" -ErrorAction SilentlyContinue
+  
+  if ($phoneProcess) {
+    # Get the main window
+    $mainWindowHandle = $phoneProcess.MainWindowHandle
+    
+    if ($mainWindowHandle -ne [System.IntPtr]::Zero) {
+      # Create automation element from window handle
+      $phoneLinkWindow = [System.Windows.Automation.AutomationElement]::FromHandle($mainWindowHandle)
+      
+      if ($phoneLinkWindow) {
+        # Find the Send button by AutomationId
+        $sendButtonCondition = [System.Windows.Automation.PropertyCondition]::new(
+          [System.Windows.Automation.AutomationElement]::AutomationIdProperty, 
+          "SendMessageButton"
+        )
+        
+        $sendButton = $phoneLinkWindow.FindFirst(
+          [System.Windows.Automation.TreeScope]::Descendants, 
+          $sendButtonCondition
+        )
+        
+        if ($sendButton -and $sendButton.Current.IsEnabled) {
+          # Click the Send button using UI Automation
+          $invokePattern = $sendButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
+          $invokePattern.Invoke()
+          Write-Output "SUCCESS: Send button clicked"
+        } else {
+          Write-Output "ERROR: Send button not found or disabled"
+        }
+      } else {
+        Write-Output "ERROR: Could not create Phone Link automation element"
+      }
+    } else {
+      Write-Output "ERROR: Phone Link window not found"
+    }
+  } else {
+    Write-Output "ERROR: Phone Link process not found"
+  }
+} catch {
+  Write-Output "ERROR: Exception during Send button click: $($_.Exception.Message)"
+}
 
-# MINIMIZE PHONE LINK (optional, removing Alt+F9 as it might interfere)
-# [System.Windows.Forms.SendKeys]::SendWait("%{F9}")
-
-Write-Output "SUCCESS"
+Write-Output "BUTTON_CLICK_COMPLETE"
 `;
       
       return new Promise((resolve) => {
