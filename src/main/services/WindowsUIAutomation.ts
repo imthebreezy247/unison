@@ -85,7 +85,18 @@ try {
     [System.Windows.Forms.SendKeys]::SendWait("${phoneNumber}")
     Start-Sleep -Milliseconds 500
     
+    # CRITICAL: Ensure Phone Link has focus before pressing ENTER
+    $phoneLinkWindow.SetFocus()
+    Start-Sleep -Milliseconds 200
+    
+    # Alternative: Click in the phone number field to ensure focus
+    [System.Windows.Forms.SendKeys]::SendWait("{HOME}")  # Move to start of phone number
+    Start-Sleep -Milliseconds 100
+    [System.Windows.Forms.SendKeys]::SendWait("{END}")   # Move to end of phone number
+    Start-Sleep -Milliseconds 200
+    
     # CRITICAL: Press ENTER to load the contact/conversation
+    Write-Output "Pressing ENTER to load contact..."
     [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
     Start-Sleep -Milliseconds 2500  # Wait longer for contact to load
     
@@ -97,7 +108,16 @@ try {
     [System.Windows.Forms.SendKeys]::SendWait("${phoneNumber}")
     Start-Sleep -Milliseconds 500
     
+    # CRITICAL: Ensure focus before pressing ENTER
+    $phoneLinkWindow.SetFocus()
+    Start-Sleep -Milliseconds 200
+    [System.Windows.Forms.SendKeys]::SendWait("{HOME}")  # Move cursor
+    Start-Sleep -Milliseconds 100
+    [System.Windows.Forms.SendKeys]::SendWait("{END}")   # Ensure proper position
+    Start-Sleep -Milliseconds 200
+    
     # CRITICAL: Press ENTER to load the contact/conversation
+    Write-Output "Fallback: Pressing ENTER to load contact..."
     [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
     Start-Sleep -Milliseconds 2500  # Wait longer for contact to load
     
