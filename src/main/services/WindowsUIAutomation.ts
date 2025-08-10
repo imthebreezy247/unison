@@ -158,57 +158,78 @@ try {
   Start-Sleep -Milliseconds 500
 }
 
-# CLICK THE ACTUAL SEND BUTTON
-# Give message time to settle in the field
-Start-Sleep -Milliseconds 500
-
-# Load UI Automation assemblies for proper button clicking
-Add-Type -AssemblyName UIAutomationClient
-Add-Type -AssemblyName UIAutomationTypes
-
-try {
-  # Find Phone Link process
-  $phoneProcess = Get-Process -Name "PhoneExperienceHost" -ErrorAction SilentlyContinue
+  # 5. CLICK THE SEND BUTTON - Using the same window element
+  Start-Sleep -Milliseconds 1000  # Give more time for button to become enabled
   
-  if ($phoneProcess) {
-    # Get the main window
-    $mainWindowHandle = $phoneProcess.MainWindowHandle
+  # Find the Send button
+  $sendButtonCondition = [System.Windows.Automation.PropertyCondition]::new(
+    [System.Windows.Automation.AutomationElement]::AutomationIdProperty, 
+    "SendMessageButton"
+  )
+  
+  $sendButton = $phoneLinkWindow.FindFirst(
+    [System.Windows.Automation.TreeScope]::Descendants, 
+    $sendButtonCondition
+  )
+  
+  if ($sendButton) {
+    Write-Output "Found Send button - Enabled: $($sendButton.Current.IsEnabled)"
     
-    if ($mainWindowHandle -ne [System.IntPtr]::Zero) {
-      # Create automation element from window handle
-      $phoneLinkWindow = [System.Windows.Automation.AutomationElement]::FromHandle($mainWindowHandle)
-      
-      if ($phoneLinkWindow) {
-        # Find the Send button by AutomationId
-        $sendButtonCondition = [System.Windows.Automation.PropertyCondition]::new(
-          [System.Windows.Automation.AutomationElement]::AutomationIdProperty, 
-          "SendMessageButton"
-        )
+    # Wait for button to become enabled (sometimes takes a moment after typing)
+    $attempts = 0
+    while (-not $sendButton.Current.IsEnabled -and $attempts -lt 10) {
+      Start-Sleep -Milliseconds 200
+      $attempts++
+    }
+    
+    if ($sendButton.Current.IsEnabled) {
+      try {
+        # Click the Send button using UI Automation
+        $invokePattern = $sendButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
+        $invokePattern.Invoke()
+        Write-Output "SUCCESS: Send button clicked with UI Automation"
+      } catch {
+        # Fallback to mouse click if UI Automation fails
+        $rect = $sendButton.Current.BoundingRectangle
+        $x = $rect.X + ($rect.Width / 2)
+        $y = $rect.Y + ($rect.Height / 2)
+        [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point($x, $y)
+        Start-Sleep -Milliseconds 100
         
-        $sendButton = $phoneLinkWindow.FindFirst(
-          [System.Windows.Automation.TreeScope]::Descendants, 
-          $sendButtonCondition
-        )
-        
-        if ($sendButton -and $sendButton.Current.IsEnabled) {
-          # Click the Send button using UI Automation
-          $invokePattern = $sendButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
-          $invokePattern.Invoke()
-          Write-Output "SUCCESS: Send button clicked"
-        } else {
-          Write-Output "ERROR: Send button not found or disabled"
+        # Import mouse click functionality
+        Add-Type -TypeDefinition @"
+        using System;
+        using System.Runtime.InteropServices;
+        public class Mouse {
+          [DllImport("user32.dll")]
+          public static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, int dwExtraInfo);
+          public const uint LEFTDOWN = 0x0002;
+          public const uint LEFTUP = 0x0004;
         }
-      } else {
-        Write-Output "ERROR: Could not create Phone Link automation element"
+"@
+        [Mouse]::mouse_event([Mouse]::LEFTDOWN, 0, 0, 0, 0)
+        Start-Sleep -Milliseconds 50
+        [Mouse]::mouse_event([Mouse]::LEFTUP, 0, 0, 0, 0)
+        Write-Output "SUCCESS: Send button clicked with mouse"
       }
     } else {
-      Write-Output "ERROR: Phone Link window not found"
+      Write-Output "ERROR: Send button is disabled after waiting"
+      # Try pressing Enter as absolute fallback
+      [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
+      Write-Output "FALLBACK: Tried Enter key"
     }
   } else {
-    Write-Output "ERROR: Phone Link process not found"
+    Write-Output "ERROR: Send button not found"
+    # Try pressing Enter as absolute fallback
+    [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
+    Write-Output "FALLBACK: Tried Enter key"
   }
+
 } catch {
-  Write-Output "ERROR: Exception during Send button click: $($_.Exception.Message)"
+  Write-Output "ERROR during automation: $($_.Exception.Message)"
+  # Final fallback - just press Enter
+  [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
+  Write-Output "FINAL_FALLBACK: Tried Enter key"
 }
 
 Write-Output "BUTTON_CLICK_COMPLETE"
