@@ -92,7 +92,7 @@ try {
     Write-Host "Found $($editControls.Count) edit controls:" -ForegroundColor Cyan
     for ($i = 0; $i -lt $editControls.Count; $i++) {
         $edit = $editControls[$i]
-        Write-Host "  Edit $i:" -ForegroundColor White
+        Write-Host "  Edit ${i}:" -ForegroundColor White
         Write-Host "    Name: '$($edit.Current.Name)'" -ForegroundColor White
         Write-Host "    AutomationId: '$($edit.Current.AutomationId)'" -ForegroundColor White
         Write-Host "    ClassName: '$($edit.Current.ClassName)'" -ForegroundColor White
