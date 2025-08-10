@@ -1,4 +1,4 @@
-# Verify ENTER keystroke is being sent
+After ENTER# Verify ENTER keystroke is being sent
 Write-Host "VERIFYING ENTER KEYSTROKE..." -ForegroundColor Cyan
 
 Add-Type -AssemblyName System.Windows.Forms
