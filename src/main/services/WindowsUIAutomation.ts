@@ -185,13 +185,7 @@ try {
     [System.Windows.Forms.SendKeys]::SendWait("${message.replace(/"/g, '""')}")
     Start-Sleep -Milliseconds 800
   }
-} catch {
-  Write-Output "ERROR during conversation setup: $($_.Exception.Message)"
-  # Continue with fallback approach
-  [System.Windows.Forms.SendKeys]::SendWait("${message.replace(/"/g, '""')}")
-  Start-Sleep -Milliseconds 500
-}
-
+  
   # 5. CLICK THE SEND BUTTON - Using the same window element
   Write-Output "Now looking for Send button..."
   Start-Sleep -Milliseconds 2000  # MUCH longer wait before looking for Send button
