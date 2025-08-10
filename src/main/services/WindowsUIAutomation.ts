@@ -79,47 +79,52 @@ try {
   if ($newMessageButton) {
     $invokePattern = $newMessageButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
     $invokePattern.Invoke()
-    Start-Sleep -Milliseconds 1000
+    Start-Sleep -Milliseconds 2000  # MUCH longer wait after New Message
     
-    # Type phone number
+    # Type phone number SLOWLY
+    Write-Output "Typing phone number: ${phoneNumber}"
     [System.Windows.Forms.SendKeys]::SendWait("${phoneNumber}")
-    Start-Sleep -Milliseconds 500
+    Start-Sleep -Milliseconds 1500  # Longer wait after typing number
     
     # CRITICAL: Ensure Phone Link has focus before pressing ENTER
+    Write-Output "Setting focus for ENTER..."
     $phoneLinkWindow.SetFocus()
-    Start-Sleep -Milliseconds 200
+    Start-Sleep -Milliseconds 500
     
-    # Alternative: Click in the phone number field to ensure focus
+    # Make sure cursor is in the right place
     [System.Windows.Forms.SendKeys]::SendWait("{HOME}")  # Move to start of phone number
-    Start-Sleep -Milliseconds 100
+    Start-Sleep -Milliseconds 300
     [System.Windows.Forms.SendKeys]::SendWait("{END}")   # Move to end of phone number
-    Start-Sleep -Milliseconds 200
+    Start-Sleep -Milliseconds 500
     
     # CRITICAL: Press ENTER to load the contact/conversation
-    Write-Output "Pressing ENTER to load contact..."
+    Write-Output "NOW PRESSING ENTER TO LOAD CONTACT..."
     [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
-    Start-Sleep -Milliseconds 2500  # Wait longer for contact to load
+    Write-Output "ENTER pressed, waiting for contact to load..."
+    Start-Sleep -Milliseconds 4000  # MUCH longer wait for contact to load
     
     Write-Output "Contact loaded for ${phoneNumber}"
   } else {
     # Fallback to keyboard shortcut
+    Write-Output "Using fallback method - Ctrl+N"
     [System.Windows.Forms.SendKeys]::SendWait("^n")
-    Start-Sleep -Milliseconds 1000
+    Start-Sleep -Milliseconds 2000  # Longer wait after Ctrl+N
     [System.Windows.Forms.SendKeys]::SendWait("${phoneNumber}")
-    Start-Sleep -Milliseconds 500
+    Start-Sleep -Milliseconds 1500  # Longer wait after typing
     
     # CRITICAL: Ensure focus before pressing ENTER
     $phoneLinkWindow.SetFocus()
-    Start-Sleep -Milliseconds 200
+    Start-Sleep -Milliseconds 500
     [System.Windows.Forms.SendKeys]::SendWait("{HOME}")  # Move cursor
-    Start-Sleep -Milliseconds 100
+    Start-Sleep -Milliseconds 300
     [System.Windows.Forms.SendKeys]::SendWait("{END}")   # Ensure proper position
-    Start-Sleep -Milliseconds 200
+    Start-Sleep -Milliseconds 500
     
     # CRITICAL: Press ENTER to load the contact/conversation
-    Write-Output "Fallback: Pressing ENTER to load contact..."
+    Write-Output "Fallback: NOW PRESSING ENTER TO LOAD CONTACT..."
     [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
-    Start-Sleep -Milliseconds 2500  # Wait longer for contact to load
+    Write-Output "Fallback: ENTER pressed, waiting..."
+    Start-Sleep -Milliseconds 4000  # Much longer wait for contact to load
     
     Write-Output "Fallback: Contact loaded for ${phoneNumber}"
   }
@@ -137,8 +142,9 @@ try {
   
   if ($inputBox) {
     # CRITICAL: Ensure input box has focus and is ready
+    Write-Output "Setting focus on message input box..."
     $inputBox.SetFocus()
-    Start-Sleep -Milliseconds 500
+    Start-Sleep -Milliseconds 1000  # Much longer wait for focus
     
     # Click the input box to ensure it's active
     $rect = $inputBox.Current.BoundingRectangle
@@ -158,17 +164,19 @@ try {
     }
 "@
     [Mouse]::mouse_event([Mouse]::LEFTDOWN, 0, 0, 0, 0)
-    Start-Sleep -Milliseconds 50
+    Start-Sleep -Milliseconds 100
     [Mouse]::mouse_event([Mouse]::LEFTUP, 0, 0, 0, 0)
-    Start-Sleep -Milliseconds 300
+    Start-Sleep -Milliseconds 800  # Much longer wait after click
     
     # Clear any existing text first
+    Write-Output "Clearing any existing text..."
     [System.Windows.Forms.SendKeys]::SendWait("^a")
-    Start-Sleep -Milliseconds 100
+    Start-Sleep -Milliseconds 300
     
-    # Type the message
+    # Type the message SLOWLY
+    Write-Output "Typing message: ${message}"
     [System.Windows.Forms.SendKeys]::SendWait("${message.replace(/"/g, '""')}")
-    Start-Sleep -Milliseconds 1200  # Even more time for button to become enabled
+    Start-Sleep -Milliseconds 2000  # MUCH longer wait for Send button to enable
     
     # Verify input box has text and focus
     Write-Output "Input focused and message typed"
@@ -185,7 +193,8 @@ try {
 }
 
   # 5. CLICK THE SEND BUTTON - Using the same window element
-  Start-Sleep -Milliseconds 1000  # Give more time for button to become enabled
+  Write-Output "Now looking for Send button..."
+  Start-Sleep -Milliseconds 2000  # MUCH longer wait before looking for Send button
   
   # Find the Send button
   $sendButtonCondition = [System.Windows.Automation.PropertyCondition]::new(
@@ -203,8 +212,8 @@ try {
     
     # Wait for button to become enabled (takes time after typing with focus)
     $attempts = 0
-    while (-not $sendButton.Current.IsEnabled -and $attempts -lt 15) {
-      Start-Sleep -Milliseconds 300  # Longer wait between checks
+    while (-not $sendButton.Current.IsEnabled -and $attempts -lt 20) {
+      Start-Sleep -Milliseconds 500  # Much longer wait between checks
       $attempts++
       Write-Output "Waiting for Send button to enable... attempt $attempts"
     }
