@@ -14,34 +14,149 @@ export class WindowsUIAutomation {
       // ULTRA-FAST PowerShell script - NO SYNTAX ERRORS
       const psScript = `
 Add-Type -AssemblyName System.Windows.Forms
-Add-Type -AssemblyName System.Threading
+Add-Type -AssemblyName UIAutomationClient
+Add-Type -AssemblyName UIAutomationTypes
 
 # Start Phone Link if not already running
 Start-Process "ms-phone:" -WindowStyle Normal
-Start-Sleep -Milliseconds 800
+Start-Sleep -Milliseconds 1500
 
-# Focus Phone Link window
-$phoneLink = Get-Process | Where-Object {$_.ProcessName -like "*Phone*" -or $_.ProcessName -like "*YourPhone*"}
-if ($phoneLink) {
-  [System.Windows.Forms.SendKeys]::SendWait("%{TAB}")
-  Start-Sleep -Milliseconds 200
+try {
+  # Find Phone Link process
+  $phoneProcess = Get-Process -Name "PhoneExperienceHost" -ErrorAction SilentlyContinue
+  
+  if (-not $phoneProcess) {
+    Write-Output "ERROR: Phone Link process not found"
+    exit 1
+  }
+  
+  # Get Phone Link window
+  $mainWindowHandle = $phoneProcess.MainWindowHandle
+  $phoneLinkWindow = [System.Windows.Automation.AutomationElement]::FromHandle($mainWindowHandle)
+  
+  if (-not $phoneLinkWindow) {
+    Write-Output "ERROR: Could not access Phone Link window"
+    exit 1
+  }
+  
+  # 1. Click Messages tab to ensure we're in the right place
+  $messagesTabCondition = [System.Windows.Automation.PropertyCondition]::new(
+    [System.Windows.Automation.AutomationElement]::AutomationIdProperty, 
+    "ChatNodeAutomationId"
+  )
+  
+  $messagesTab = $phoneLinkWindow.FindFirst(
+    [System.Windows.Automation.TreeScope]::Descendants, 
+    $messagesTabCondition
+  )
+  
+  if ($messagesTab) {
+    # Use Selection pattern instead of Invoke for tab items
+    try {
+      $selectionItemPattern = $messagesTab.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern)
+      $selectionItemPattern.Select()
+    } catch {
+      # Fallback to SendKeys if UI Automation fails
+      [System.Windows.Forms.SendKeys]::SendWait("^1")
+    }
+    Start-Sleep -Milliseconds 1000
+  }
+  
+  # 2. Look for existing conversation with this phone number
+  $conversationList = $phoneLinkWindow.FindFirst(
+    [System.Windows.Automation.TreeScope]::Descendants,
+    [System.Windows.Automation.PropertyCondition]::new(
+      [System.Windows.Automation.AutomationElement]::AutomationIdProperty,
+      "CVSListView"
+    )
+  )
+  
+  $foundExistingConversation = $false
+  
+  if ($conversationList) {
+    # Find conversation with matching phone number
+    $conversations = $conversationList.FindAll(
+      [System.Windows.Automation.TreeScope]::Children,
+      [System.Windows.Automation.PropertyCondition]::new(
+        [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+        [System.Windows.Automation.ControlType]::ListItem
+      )
+    )
+    
+    foreach ($conversation in $conversations) {
+      if ($conversation.Current.Name -like "*${phoneNumber}*") {
+        # Found existing conversation, click it
+        $invokePattern = $conversation.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
+        $invokePattern.Invoke()
+        $foundExistingConversation = $true
+        Start-Sleep -Milliseconds 1000
+        break
+      }
+    }
+  }
+  
+  # 3. If no existing conversation found, create new message
+  if (-not $foundExistingConversation) {
+    # Click New Message button
+    $newMessageCondition = [System.Windows.Automation.PropertyCondition]::new(
+      [System.Windows.Automation.AutomationElement]::AutomationIdProperty, 
+      "NewMessageButton"
+    )
+    
+    $newMessageButton = $phoneLinkWindow.FindFirst(
+      [System.Windows.Automation.TreeScope]::Descendants, 
+      $newMessageCondition
+    )
+    
+    if ($newMessageButton) {
+      $invokePattern = $newMessageButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
+      $invokePattern.Invoke()
+      Start-Sleep -Milliseconds 1000
+      
+      # Type phone number and navigate to message field
+      [System.Windows.Forms.SendKeys]::SendWait("${phoneNumber}")
+      Start-Sleep -Milliseconds 500
+      [System.Windows.Forms.SendKeys]::SendWait("{TAB}")
+      Start-Sleep -Milliseconds 300
+    } else {
+      # Fallback to keyboard shortcut
+      [System.Windows.Forms.SendKeys]::SendWait("^n")
+      Start-Sleep -Milliseconds 1000
+      [System.Windows.Forms.SendKeys]::SendWait("${phoneNumber}")
+      Start-Sleep -Milliseconds 500
+      [System.Windows.Forms.SendKeys]::SendWait("{TAB}")
+      Start-Sleep -Milliseconds 300
+    }
+  }
+  
+  # 4. Now find and use the message input box
+  $inputBoxCondition = [System.Windows.Automation.PropertyCondition]::new(
+    [System.Windows.Automation.AutomationElement]::AutomationIdProperty, 
+    "InputTextBox"
+  )
+  
+  $inputBox = $phoneLinkWindow.FindFirst(
+    [System.Windows.Automation.TreeScope]::Descendants, 
+    $inputBoxCondition
+  )
+  
+  if ($inputBox) {
+    # Focus the input box and type message
+    $inputBox.SetFocus()
+    Start-Sleep -Milliseconds 200
+    [System.Windows.Forms.SendKeys]::SendWait("${message.replace(/"/g, '""')}")
+    Start-Sleep -Milliseconds 500
+  } else {
+    # Fallback - type message using SendKeys
+    [System.Windows.Forms.SendKeys]::SendWait("${message.replace(/"/g, '""')}")
+    Start-Sleep -Milliseconds 500
+  }
+} catch {
+  Write-Output "ERROR during conversation setup: $($_.Exception.Message)"
+  # Continue with fallback approach
+  [System.Windows.Forms.SendKeys]::SendWait("${message.replace(/"/g, '""')}")
+  Start-Sleep -Milliseconds 500
 }
-
-# NEW MESSAGE - Ctrl+N
-[System.Windows.Forms.SendKeys]::SendWait("^n")
-Start-Sleep -Milliseconds 400
-
-# TYPE PHONE NUMBER
-[System.Windows.Forms.SendKeys]::SendWait("${phoneNumber}")
-Start-Sleep -Milliseconds 200
-
-# TAB TO MESSAGE FIELD
-[System.Windows.Forms.SendKeys]::SendWait("{TAB}")
-Start-Sleep -Milliseconds 150
-
-# TYPE MESSAGE
-[System.Windows.Forms.SendKeys]::SendWait("${message.replace(/"/g, '""')}")
-Start-Sleep -Milliseconds 500
 
 # CLICK THE ACTUAL SEND BUTTON
 # Give message time to settle in the field
