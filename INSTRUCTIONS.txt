@@ -1,0 +1,47 @@
+🎯 SIMPLE INSTRUCTIONS TO RUN DIAGNOSTIC SCRIPTS
+
+=== STEP 1: Open Command Prompt ===
+1. Press Windows key + R
+2. Type: cmd
+3. Press Enter
+
+=== STEP 2: Navigate to project folder ===
+Copy and paste this command:
+cd C:\unison
+
+=== STEP 3: Run the shortcut analyzer ===
+Copy and paste this command:
+powershell.exe -ExecutionPolicy Bypass -File "analyze-phone-link-shortcut.ps1"
+
+This will show us:
+- Where Phone Link is actually installed
+- What DLLs it uses
+- Registry settings
+- Package information
+
+=== STEP 4: Run the automation checker ===
+Copy and paste this command:
+powershell.exe -ExecutionPolicy Bypass -File "check-automation-logs.ps1"
+
+This will show us:
+- If our Send button detection works
+- Why the button might be disabled
+- If we can click it properly
+
+=== STEP 5: Copy ALL the output ===
+1. Right-click in the command prompt window
+2. Choose "Select All"
+3. Press Enter to copy
+4. Paste it in your next message
+
+=== WHAT THIS WILL REVEAL ===
+- The exact Phone Link executable path
+- Available DLLs we can use to send messages
+- Authentication tokens stored locally
+- Why our current automation isn't working
+
+This will help us either:
+A) Fix the UI automation approach, OR
+B) Switch to calling Phone Link's DLLs directly
+
+🚨 IMPORTANT: Make sure Phone Link is OPEN when running these scripts!

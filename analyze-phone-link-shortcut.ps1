@@ -2,15 +2,11 @@
 Write-Host "ANALYZING PHONE LINK SHORTCUT..." -ForegroundColor Cyan
 
 # Get the shortcut from desktop
-$shortcutPath = "$env:USERPROFILE\Desktop\Phone Link.lnk"
+$shortcutPath = "C:\Users\Public\OneDrive-2\OneDrive\Desktop\Phone Link - Shortcut.lnk"
 
 if (-not (Test-Path $shortcutPath)) {
-    # Try OneDrive desktop
-    $shortcutPath = "$env:USERPROFILE\OneDrive\Desktop\Phone Link.lnk"
-}
-
-if (-not (Test-Path $shortcutPath)) {
-    Write-Host "Phone Link shortcut not found on desktop" -ForegroundColor Red
+    Write-Host "Phone Link shortcut not found at: $shortcutPath" -ForegroundColor Red
+    Write-Host "Please check the path is correct" -ForegroundColor Yellow
     exit
 }
 
