@@ -62,79 +62,46 @@ try {
     Start-Sleep -Milliseconds 1000
   }
   
-  # 2. Look for existing conversation with this phone number
-  $conversationList = $phoneLinkWindow.FindFirst(
-    [System.Windows.Automation.TreeScope]::Descendants,
-    [System.Windows.Automation.PropertyCondition]::new(
-      [System.Windows.Automation.AutomationElement]::AutomationIdProperty,
-      "CVSListView"
-    )
+  # 2. ALWAYS create new message to ensure proper flow
+  # This ensures the phone number gets entered and ENTER gets pressed
+  
+  # Click New Message button
+  $newMessageCondition = [System.Windows.Automation.PropertyCondition]::new(
+    [System.Windows.Automation.AutomationElement]::AutomationIdProperty, 
+    "NewMessageButton"
   )
   
-  $foundExistingConversation = $false
+  $newMessageButton = $phoneLinkWindow.FindFirst(
+    [System.Windows.Automation.TreeScope]::Descendants, 
+    $newMessageCondition
+  )
   
-  if ($conversationList) {
-    # Find conversation with matching phone number
-    $conversations = $conversationList.FindAll(
-      [System.Windows.Automation.TreeScope]::Children,
-      [System.Windows.Automation.PropertyCondition]::new(
-        [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
-        [System.Windows.Automation.ControlType]::ListItem
-      )
-    )
+  if ($newMessageButton) {
+    $invokePattern = $newMessageButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
+    $invokePattern.Invoke()
+    Start-Sleep -Milliseconds 1000
     
-    foreach ($conversation in $conversations) {
-      if ($conversation.Current.Name -like "*${phoneNumber}*") {
-        # Found existing conversation, click it
-        $invokePattern = $conversation.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
-        $invokePattern.Invoke()
-        $foundExistingConversation = $true
-        Start-Sleep -Milliseconds 1000
-        break
-      }
-    }
-  }
-  
-  # 3. If no existing conversation found, create new message
-  if (-not $foundExistingConversation) {
-    # Click New Message button
-    $newMessageCondition = [System.Windows.Automation.PropertyCondition]::new(
-      [System.Windows.Automation.AutomationElement]::AutomationIdProperty, 
-      "NewMessageButton"
-    )
+    # Type phone number
+    [System.Windows.Forms.SendKeys]::SendWait("${phoneNumber}")
+    Start-Sleep -Milliseconds 500
     
-    $newMessageButton = $phoneLinkWindow.FindFirst(
-      [System.Windows.Automation.TreeScope]::Descendants, 
-      $newMessageCondition
-    )
+    # CRITICAL: Press ENTER to load the contact/conversation
+    [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
+    Start-Sleep -Milliseconds 2500  # Wait longer for contact to load
     
-    if ($newMessageButton) {
-      $invokePattern = $newMessageButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
-      $invokePattern.Invoke()
-      Start-Sleep -Milliseconds 1000
-      
-      # Type phone number
-      [System.Windows.Forms.SendKeys]::SendWait("${phoneNumber}")
-      Start-Sleep -Milliseconds 500
-      
-      # CRITICAL: Press ENTER to load the contact/conversation
-      [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
-      Start-Sleep -Milliseconds 2500  # Wait longer for contact to load
-      
-      Write-Output "Contact loaded for ${phoneNumber}"
-    } else {
-      # Fallback to keyboard shortcut
-      [System.Windows.Forms.SendKeys]::SendWait("^n")
-      Start-Sleep -Milliseconds 1000
-      [System.Windows.Forms.SendKeys]::SendWait("${phoneNumber}")
-      Start-Sleep -Milliseconds 500
-      
-      # CRITICAL: Press ENTER to load the contact/conversation
-      [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
-      Start-Sleep -Milliseconds 2500  # Wait longer for contact to load
-      
-      Write-Output "Fallback: Contact loaded for ${phoneNumber}"
-    }
+    Write-Output "Contact loaded for ${phoneNumber}"
+  } else {
+    # Fallback to keyboard shortcut
+    [System.Windows.Forms.SendKeys]::SendWait("^n")
+    Start-Sleep -Milliseconds 1000
+    [System.Windows.Forms.SendKeys]::SendWait("${phoneNumber}")
+    Start-Sleep -Milliseconds 500
+    
+    # CRITICAL: Press ENTER to load the contact/conversation
+    [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
+    Start-Sleep -Milliseconds 2500  # Wait longer for contact to load
+    
+    Write-Output "Fallback: Contact loaded for ${phoneNumber}"
   }
   
   # 4. Now find and use the message input box
