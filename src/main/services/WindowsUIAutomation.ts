@@ -113,19 +113,27 @@ try {
       $invokePattern.Invoke()
       Start-Sleep -Milliseconds 1000
       
-      # Type phone number and navigate to message field
+      # Type phone number
       [System.Windows.Forms.SendKeys]::SendWait("${phoneNumber}")
       Start-Sleep -Milliseconds 500
-      [System.Windows.Forms.SendKeys]::SendWait("{TAB}")
-      Start-Sleep -Milliseconds 300
+      
+      # CRITICAL: Press ENTER to load the contact/conversation
+      [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
+      Start-Sleep -Milliseconds 1500  # Wait for contact to load
+      
+      Write-Output "Contact loaded for ${phoneNumber}"
     } else {
       # Fallback to keyboard shortcut
       [System.Windows.Forms.SendKeys]::SendWait("^n")
       Start-Sleep -Milliseconds 1000
       [System.Windows.Forms.SendKeys]::SendWait("${phoneNumber}")
       Start-Sleep -Milliseconds 500
-      [System.Windows.Forms.SendKeys]::SendWait("{TAB}")
-      Start-Sleep -Milliseconds 300
+      
+      # CRITICAL: Press ENTER to load the contact/conversation
+      [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
+      Start-Sleep -Milliseconds 1500  # Wait for contact to load
+      
+      Write-Output "Fallback: Contact loaded for ${phoneNumber}"
     }
   }
   
@@ -141,15 +149,46 @@ try {
   )
   
   if ($inputBox) {
-    # Focus the input box and type message
+    # CRITICAL: Ensure input box has focus and is ready
     $inputBox.SetFocus()
-    Start-Sleep -Milliseconds 200
-    [System.Windows.Forms.SendKeys]::SendWait("${message.replace(/"/g, '""')}")
     Start-Sleep -Milliseconds 500
+    
+    # Click the input box to ensure it's active
+    $rect = $inputBox.Current.BoundingRectangle
+    $x = $rect.X + ($rect.Width / 2)
+    $y = $rect.Y + ($rect.Height / 2)
+    [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point($x, $y)
+    
+    # Mouse click to ensure focus
+    Add-Type -TypeDefinition @"
+    using System;
+    using System.Runtime.InteropServices;
+    public class Mouse {
+      [DllImport("user32.dll")]
+      public static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, int dwExtraInfo);
+      public const uint LEFTDOWN = 0x0002;
+      public const uint LEFTUP = 0x0004;
+    }
+"@
+    [Mouse]::mouse_event([Mouse]::LEFTDOWN, 0, 0, 0, 0)
+    Start-Sleep -Milliseconds 50
+    [Mouse]::mouse_event([Mouse]::LEFTUP, 0, 0, 0, 0)
+    Start-Sleep -Milliseconds 300
+    
+    # Clear any existing text first
+    [System.Windows.Forms.SendKeys]::SendWait("^a")
+    Start-Sleep -Milliseconds 100
+    
+    # Type the message
+    [System.Windows.Forms.SendKeys]::SendWait("${message.replace(/"/g, '""')}")
+    Start-Sleep -Milliseconds 800  # More time for button to become enabled
+    
+    # Verify input box has text and focus
+    Write-Output "Input focused and message typed"
   } else {
     # Fallback - type message using SendKeys
     [System.Windows.Forms.SendKeys]::SendWait("${message.replace(/"/g, '""')}")
-    Start-Sleep -Milliseconds 500
+    Start-Sleep -Milliseconds 800
   }
 } catch {
   Write-Output "ERROR during conversation setup: $($_.Exception.Message)"
@@ -175,11 +214,12 @@ try {
   if ($sendButton) {
     Write-Output "Found Send button - Enabled: $($sendButton.Current.IsEnabled)"
     
-    # Wait for button to become enabled (sometimes takes a moment after typing)
+    # Wait for button to become enabled (takes time after typing with focus)
     $attempts = 0
-    while (-not $sendButton.Current.IsEnabled -and $attempts -lt 10) {
-      Start-Sleep -Milliseconds 200
+    while (-not $sendButton.Current.IsEnabled -and $attempts -lt 15) {
+      Start-Sleep -Milliseconds 300  # Longer wait between checks
       $attempts++
+      Write-Output "Waiting for Send button to enable... attempt $attempts"
     }
     
     if ($sendButton.Current.IsEnabled) {
