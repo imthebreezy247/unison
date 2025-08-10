@@ -119,7 +119,7 @@ try {
       
       # CRITICAL: Press ENTER to load the contact/conversation
       [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
-      Start-Sleep -Milliseconds 1500  # Wait for contact to load
+      Start-Sleep -Milliseconds 2500  # Wait longer for contact to load
       
       Write-Output "Contact loaded for ${phoneNumber}"
     } else {
@@ -131,7 +131,7 @@ try {
       
       # CRITICAL: Press ENTER to load the contact/conversation
       [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
-      Start-Sleep -Milliseconds 1500  # Wait for contact to load
+      Start-Sleep -Milliseconds 2500  # Wait longer for contact to load
       
       Write-Output "Fallback: Contact loaded for ${phoneNumber}"
     }
@@ -181,7 +181,7 @@ try {
     
     # Type the message
     [System.Windows.Forms.SendKeys]::SendWait("${message.replace(/"/g, '""')}")
-    Start-Sleep -Milliseconds 800  # More time for button to become enabled
+    Start-Sleep -Milliseconds 1200  # Even more time for button to become enabled
     
     # Verify input box has text and focus
     Write-Output "Input focused and message typed"
