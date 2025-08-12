@@ -104,6 +104,11 @@ try {
     Start-Sleep -Milliseconds 4000  # MUCH longer wait for contact to load
     
     Write-Output "Contact loaded for ${phoneNumber}"
+    
+    # EXTRA WAIT: Let contact fully load before proceeding to message input
+    Write-Output "Waiting extra time for contact interface to stabilize..."
+    Start-Sleep -Milliseconds 2000  # Extra 2 seconds for UI to be ready
+    
   } else {
     # Fallback to keyboard shortcut
     Write-Output "Using fallback method - Ctrl+N"
@@ -127,6 +132,11 @@ try {
     Start-Sleep -Milliseconds 4000  # Much longer wait for contact to load
     
     Write-Output "Fallback: Contact loaded for ${phoneNumber}"
+    
+    # EXTRA WAIT: Let contact fully load before proceeding to message input (fallback)
+    Write-Output "Fallback: Waiting extra time for contact interface to stabilize..."
+    Start-Sleep -Milliseconds 2000  # Extra 2 seconds for UI to be ready
+    
   }
   
   # 4. Now find and use the message input box
