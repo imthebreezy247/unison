@@ -603,6 +603,16 @@ class UnisonXApp {
 
     ipcMain.handle('messages:create-thread', async (event, phoneNumber: string) => {
       try {
+        // First check if thread already exists for this phone number
+        const existingThread = await this.databaseManager.get(`
+          SELECT id FROM message_threads WHERE phone_number = ?
+        `, [phoneNumber]);
+        
+        if (existingThread) {
+          log.info(`Found existing thread for: ${phoneNumber} - ${existingThread.id}`);
+          return existingThread.id;
+        }
+        
         log.info(`Creating new thread for: ${phoneNumber}`);
         const threadId = `thread-${phoneNumber.replace(/[^a-zA-Z0-9]/g, '')}-${Date.now()}`;
         

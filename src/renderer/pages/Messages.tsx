@@ -509,7 +509,7 @@ export const Messages: React.FC = () => {
                               {formatTime(message.timestamp)}
                             </span>
                           </div>
-                          <p className="text-sm text-gray-600 dark:text-gray-400 truncate">
+                          <p className="text-sm text-gray-600 dark:text-gray-400 truncate select-text cursor-text">
                             {message.content}
                           </p>
                         </div>
@@ -709,7 +709,7 @@ export const Messages: React.FC = () => {
                         : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100'
                     }`}
                   >
-                    <p className="text-sm">{message.content}</p>
+                    <p className="text-sm select-text cursor-text break-words">{message.content}</p>
                     <div className="flex items-center justify-between mt-1">
                       <span className="text-xs opacity-75">
                         {formatTime(message.timestamp)}

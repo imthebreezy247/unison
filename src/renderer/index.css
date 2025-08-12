@@ -18,6 +18,15 @@
     @apply select-none;
   }
   
+  /* Enable text selection in message areas */
+  .message-content {
+    @apply select-text;
+  }
+  
+  .message-input {
+    @apply select-text;
+  }
+  
   .title-bar {
     -webkit-app-region: drag;
   }
