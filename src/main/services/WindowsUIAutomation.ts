@@ -114,20 +114,16 @@ try {
     [System.Windows.Forms.SendKeys]::SendWait("${phoneNumber}")
     Start-Sleep -Milliseconds 1500  # Longer wait after typing number
     
-    # CRITICAL: Ensure Phone Link has focus before pressing ENTER
-    Write-Output "Setting focus for ENTER..."
-    $phoneLinkWindow.SetFocus()
-    Start-Sleep -Milliseconds 500
-    
-    # Make sure cursor is in the right place
-    [System.Windows.Forms.SendKeys]::SendWait("{HOME}")  # Move to start of phone number
-    Start-Sleep -Milliseconds 300
-    [System.Windows.Forms.SendKeys]::SendWait("{END}")   # Move to end of phone number
-    Start-Sleep -Milliseconds 500
-    
-    # CRITICAL: Press ENTER to load the contact/conversation
+    # CRITICAL: Press ENTER to load the contact (simplified approach)
     Write-Output "NOW PRESSING ENTER TO LOAD CONTACT..."
+    
+    # Use multiple methods to ensure ENTER gets pressed
     [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
+    Start-Sleep -Milliseconds 500
+    
+    # Backup ENTER press
+    [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
+    
     Write-Output "ENTER pressed, waiting for contact to load..."
     Start-Sleep -Milliseconds 4000  # MUCH longer wait for contact to load
     
@@ -141,17 +137,16 @@ try {
     [System.Windows.Forms.SendKeys]::SendWait("${phoneNumber}")
     Start-Sleep -Milliseconds 1500  # Longer wait after typing
     
-    # CRITICAL: Ensure focus before pressing ENTER
-    $phoneLinkWindow.SetFocus()
-    Start-Sleep -Milliseconds 500
-    [System.Windows.Forms.SendKeys]::SendWait("{HOME}")  # Move cursor
-    Start-Sleep -Milliseconds 300
-    [System.Windows.Forms.SendKeys]::SendWait("{END}")   # Ensure proper position
+    # CRITICAL: Press ENTER to load the contact (fallback simplified)
+    Write-Output "Fallback: NOW PRESSING ENTER TO LOAD CONTACT..."
+    
+    # Use multiple methods to ensure ENTER gets pressed
+    [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
     Start-Sleep -Milliseconds 500
     
-    # CRITICAL: Press ENTER to load the contact/conversation
-    Write-Output "Fallback: NOW PRESSING ENTER TO LOAD CONTACT..."
+    # Backup ENTER press
     [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
+    
     Write-Output "Fallback: ENTER pressed, waiting..."
     Start-Sleep -Milliseconds 4000  # Much longer wait for contact to load
     
