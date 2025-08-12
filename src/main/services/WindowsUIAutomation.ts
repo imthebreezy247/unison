@@ -273,6 +273,7 @@ try {
 }
 
 Write-Output "BUTTON_CLICK_COMPLETE"
+Write-Output "AUTOMATION_FINISHED_SUCCESS"
 `;
       
       return new Promise((resolve) => {
@@ -316,12 +317,12 @@ Write-Output "BUTTON_CLICK_COMPLETE"
           resolve(false);
         });
         
-        // Timeout after 10 seconds to allow for ENTER key delays
+        // Timeout after 15 seconds to allow for ENTER key delays and message typing
         setTimeout(() => {
           psProcess.kill();
-          log.error('❌ Phone Link automation timed out (10 seconds)');
+          log.error('❌ Phone Link automation timed out (15 seconds)');
           resolve(false);
-        }, 10000);
+        }, 15000);
       });
       
     } catch (error) {
