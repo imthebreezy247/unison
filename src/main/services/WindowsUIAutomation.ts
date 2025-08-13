@@ -125,7 +125,7 @@ try {
     [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
     
     Write-Output "ENTER pressed, waiting for contact to load..."
-    Start-Sleep -Milliseconds 4000  # MUCH longer wait for contact to load
+    Start-Sleep -Milliseconds 6000  # Extra time for contact to load properly
     
     Write-Output "SUCCESS: Contact loaded for ${phoneNumber}"
     
@@ -148,7 +148,7 @@ try {
     [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
     
     Write-Output "Fallback: ENTER pressed, waiting..."
-    Start-Sleep -Milliseconds 4000  # Much longer wait for contact to load
+    Start-Sleep -Milliseconds 6000  # Extra time for contact to load properly
     
     Write-Output "SUCCESS: Fallback contact loaded for ${phoneNumber}"
   }
@@ -201,12 +201,12 @@ Write-Output "CONTACT_LOAD_COMPLETE"
           resolve(false);
         });
         
-        // Timeout after 8 seconds (just for contact loading)
+        // Timeout after 10 seconds (just for contact loading)
         setTimeout(() => {
           psProcess.kill();
-          log.error('❌ Contact loading timed out (8 seconds)');
+          log.error('❌ Contact loading timed out (10 seconds)');
           resolve(false);
-        }, 8000);
+        }, 10000);
       });
       
     } catch (error) {
