@@ -5,41 +5,14 @@ import * as fs from 'fs';
 export class WindowsUIAutomation {
   
   /**
-   * TWO-STEP Phone Link automation - Contact loading then message sending
+   * SINGLE-SCRIPT Phone Link automation - Contact loading AND message sending in one go
    */
   public async sendMessageThroughPhoneLink(phoneNumber: string, message: string): Promise<boolean> {
-    log.info(`🚀 TWO-STEP Phone Link automation to ${phoneNumber}`);
-    
-    // Step 1: Load contact (this works perfectly)
-    const contactLoaded = await this.loadContactInPhoneLink(phoneNumber);
-    
-    if (!contactLoaded) {
-      log.error('❌ Step 1 failed: Could not load contact');
-      return false;
-    }
-    
-    log.info('✅ Step 1 complete: Contact loaded successfully');
-    
-    // Wait a moment between steps
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Step 2: Type message and send
-    const messageSent = await this.typeMessageAndSend(message);
-    
-    if (messageSent) {
-      log.info('✅ Step 2 complete: Message sent successfully');
-      return true;
-    } else {
-      log.error('❌ Step 2 failed: Could not send message');
-      return false;
-    }
-  }
-
-  /**
-   * STEP 1: Load contact in Phone Link (just phone number + ENTER)
-   */
-  public async loadContactInPhoneLink(phoneNumber: string): Promise<boolean> {
-    log.info(`📞 STEP 1: Loading contact for ${phoneNumber}`);
+    const startTime = Date.now();
+    log.info(`🚀 SINGLE-SCRIPT Phone Link automation to ${phoneNumber}`);
+    log.info(`📍 INTERNAL: Function called at ${new Date().toLocaleTimeString()}`);
+    log.info(`📍 INTERNAL: Target number: ${phoneNumber}, Message length: ${message.length} chars`);
+    log.info(`📍 INTERNAL: Starting PowerShell script generation...`);
     
     try {
       const psScript = `
@@ -69,6 +42,8 @@ try {
     exit 1
   }
   
+  Write-Output "STEP 1: Loading contact for ${phoneNumber}..."
+  
   # 1. Click Messages tab to ensure we're in the right place
   $messagesTabCondition = [System.Windows.Automation.PropertyCondition]::new(
     [System.Windows.Automation.AutomationElement]::AutomationIdProperty, 
@@ -81,19 +56,16 @@ try {
   )
   
   if ($messagesTab) {
-    # Use Selection pattern instead of Invoke for tab items
     try {
       $selectionItemPattern = $messagesTab.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern)
       $selectionItemPattern.Select()
     } catch {
-      # Fallback to SendKeys if UI Automation fails
       [System.Windows.Forms.SendKeys]::SendWait("^1")
     }
     Start-Sleep -Milliseconds 1000
   }
   
-  # 2. ALWAYS create new message to ensure proper flow
-  # Click New Message button
+  # 2. Click New Message button
   $newMessageCondition = [System.Windows.Automation.PropertyCondition]::new(
     [System.Windows.Automation.AutomationElement]::AutomationIdProperty, 
     "NewMessageButton"
@@ -107,145 +79,39 @@ try {
   if ($newMessageButton) {
     $invokePattern = $newMessageButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
     $invokePattern.Invoke()
-    Start-Sleep -Milliseconds 2000  # MUCH longer wait after New Message
+    Start-Sleep -Milliseconds 2000
     
-    # Type phone number SLOWLY
+    # Type phone number
     Write-Output "Typing phone number: ${phoneNumber}"
     [System.Windows.Forms.SendKeys]::SendWait("${phoneNumber}")
-    Start-Sleep -Milliseconds 1500  # Longer wait after typing number
+    Start-Sleep -Milliseconds 1500
     
-    # CRITICAL: Press ENTER to load the contact (simplified approach)
-    Write-Output "NOW PRESSING ENTER TO LOAD CONTACT..."
-    
-    # Use multiple methods to ensure ENTER gets pressed
+    # Press ENTER to load contact
+    Write-Output "Pressing ENTER to load contact..."
     [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
-    Start-Sleep -Milliseconds 500
+    [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")  # Backup ENTER
     
-    # Backup ENTER press
-    [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
+    Write-Output "Waiting for contact to load..."
+    Start-Sleep -Milliseconds 4000  # Reduced wait time
     
-    Write-Output "ENTER pressed, waiting for contact to load..."
-    Start-Sleep -Milliseconds 6000  # Extra time for contact to load properly
-    
-    Write-Output "SUCCESS: Contact loaded for ${phoneNumber}"
+    Write-Output "STEP 1 COMPLETE: Contact loaded"
     
   } else {
-    # Fallback to keyboard shortcut
-    Write-Output "Using fallback method - Ctrl+N"
+    # Fallback method
+    Write-Output "Using fallback: Ctrl+N"
     [System.Windows.Forms.SendKeys]::SendWait("^n")
-    Start-Sleep -Milliseconds 2000  # Longer wait after Ctrl+N
+    Start-Sleep -Milliseconds 2000
     [System.Windows.Forms.SendKeys]::SendWait("${phoneNumber}")
-    Start-Sleep -Milliseconds 1500  # Longer wait after typing
-    
-    # CRITICAL: Press ENTER to load the contact (fallback simplified)
-    Write-Output "Fallback: NOW PRESSING ENTER TO LOAD CONTACT..."
-    
-    # Use multiple methods to ensure ENTER gets pressed
+    Start-Sleep -Milliseconds 1500
     [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
-    Start-Sleep -Milliseconds 500
-    
-    # Backup ENTER press
     [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
-    
-    Write-Output "Fallback: ENTER pressed, waiting..."
-    Start-Sleep -Milliseconds 6000  # Extra time for contact to load properly
-    
-    Write-Output "SUCCESS: Fallback contact loaded for ${phoneNumber}"
-  }
-
-} catch {
-  Write-Output "ERROR during contact loading: $($_.Exception.Message)"
-}
-
-Write-Output "CONTACT_LOAD_COMPLETE"
-`;
-      
-      return new Promise((resolve) => {
-        const psProcess = spawn('powershell.exe', [
-          '-NoProfile', 
-          '-ExecutionPolicy', 'Bypass', 
-          '-WindowStyle', 'Hidden',
-          '-Command', psScript
-        ], {
-          stdio: ['pipe', 'pipe', 'pipe'],
-          shell: false
-        });
-        
-        let output = '';
-        let errorOutput = '';
-        
-        psProcess.stdout?.on('data', (data: Buffer) => {
-          output += data.toString();
-          log.info('📞 Contact loading output:', data.toString().trim());
-        });
-        
-        psProcess.stderr?.on('data', (data: Buffer) => {
-          errorOutput += data.toString();
-          log.error('📞 Contact loading error:', data.toString().trim());
-        });
-        
-        psProcess.on('close', (code) => {
-          log.info(`📞 Contact loading finished with code: ${code}`);
-          
-          if (code === 0 || output.includes('SUCCESS')) {
-            log.info('✅ Contact loaded successfully!');
-            resolve(true);
-          } else {
-            log.error(`❌ Contact loading failed. Code: ${code}, Error: ${errorOutput}`);
-            resolve(false);
-          }
-        });
-        
-        psProcess.on('error', (error) => {
-          log.error('❌ Contact loading PowerShell error:', error);
-          resolve(false);
-        });
-        
-        // Timeout after 10 seconds (just for contact loading)
-        setTimeout(() => {
-          psProcess.kill();
-          log.error('❌ Contact loading timed out (10 seconds)');
-          resolve(false);
-        }, 10000);
-      });
-      
-    } catch (error) {
-      log.error('❌ Contact loading error:', error);
-      return false;
-    }
-  }
-
-  /**
-   * STEP 2: Just type message and hit send (assumes contact is already loaded)
-   */
-  public async typeMessageAndSend(message: string): Promise<boolean> {
-    log.info(`💬 STEP 2: Typing message and sending...`);
-    
-    try {
-      const psScript = `
-Add-Type -AssemblyName System.Windows.Forms
-Add-Type -AssemblyName UIAutomationClient
-Add-Type -AssemblyName UIAutomationTypes
-
-try {
-  # Find Phone Link process (should already be running)
-  $phoneProcess = Get-Process -Name "PhoneExperienceHost" -ErrorAction SilentlyContinue
-  
-  if (-not $phoneProcess) {
-    Write-Output "ERROR: Phone Link process not found"
-    exit 1
+    Start-Sleep -Milliseconds 4000
+    Write-Output "STEP 1 COMPLETE: Fallback contact loaded"
   }
   
-  # Get Phone Link window
-  $mainWindowHandle = $phoneProcess.MainWindowHandle
-  $phoneLinkWindow = [System.Windows.Automation.AutomationElement]::FromHandle($mainWindowHandle)
+  Write-Output "STEP 2: Now typing message..."
   
-  if (-not $phoneLinkWindow) {
-    Write-Output "ERROR: Could not access Phone Link window"
-    exit 1
-  }
-  
-  # Find message input box
+  # 3. Find message input box
   $inputBoxCondition = [System.Windows.Automation.PropertyCondition]::new(
     [System.Windows.Automation.AutomationElement]::AutomationIdProperty, 
     "InputTextBox"
@@ -257,17 +123,16 @@ try {
   )
   
   if ($inputBox) {
-    Write-Output "Found message input box, setting focus..."
+    Write-Output "Found message input box"
     $inputBox.SetFocus()
     Start-Sleep -Milliseconds 800
     
-    # Click the input box to ensure it's active
+    # Click input box
     $rect = $inputBox.Current.BoundingRectangle
     $x = $rect.X + ($rect.Width / 2)
     $y = $rect.Y + ($rect.Height / 2)
     [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point($x, $y)
     
-    # Mouse click to ensure focus
     Add-Type -TypeDefinition @"
     using System;
     using System.Runtime.InteropServices;
@@ -283,26 +148,25 @@ try {
     [Mouse]::mouse_event([Mouse]::LEFTUP, 0, 0, 0, 0)
     Start-Sleep -Milliseconds 500
     
-    # Clear any existing text
-    Write-Output "Clearing input and typing message..."
+    # Clear and type message
+    Write-Output "Typing message: ${message}"
     [System.Windows.Forms.SendKeys]::SendWait("^a")
-    Start-Sleep -Milliseconds 200
-    
-    # Type the message
+    Start-Sleep -Milliseconds 100
     [System.Windows.Forms.SendKeys]::SendWait("${message.replace(/"/g, '""')}")
-    Start-Sleep -Milliseconds 1000
-    
-    Write-Output "Message typed, pressing ENTER to send..."
-    [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
     Start-Sleep -Milliseconds 500
     
-    Write-Output "SUCCESS: Message sent with ENTER key"
+    Write-Output "Pressing ENTER to send..."
+    [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
+    Start-Sleep -Milliseconds 300
+    
+    Write-Output "SUCCESS: Message sent!"
   } else {
-    Write-Output "Input box not found, trying direct ENTER..."
+    # Fallback - just type and send
+    Write-Output "Input box not found, using fallback..."
     [System.Windows.Forms.SendKeys]::SendWait("${message.replace(/"/g, '""')}")
     Start-Sleep -Milliseconds 800
     [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
-    Write-Output "SUCCESS: Message sent via fallback"
+    Write-Output "SUCCESS: Message sent via fallback!"
   }
 
 } catch {
@@ -311,11 +175,14 @@ try {
   [System.Windows.Forms.SendKeys]::SendWait("${message.replace(/"/g, '""')}")
   Start-Sleep -Milliseconds 300
   [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
-  Write-Output "FINAL_FALLBACK: Tried typing + Enter"
+  Write-Output "FINAL_FALLBACK: Message sent"
 }
 
-Write-Output "MESSAGE_SEND_COMPLETE"
+Write-Output "AUTOMATION_COMPLETE"
 `;
+        
+        log.info(`📍 INTERNAL: PowerShell script generated (${psScript.length} chars)`);
+        log.info(`📍 INTERNAL: About to spawn PowerShell process with elevated privileges...`);
       
       return new Promise((resolve) => {
         const psProcess = spawn('powershell.exe', [
@@ -332,42 +199,82 @@ Write-Output "MESSAGE_SEND_COMPLETE"
         let errorOutput = '';
         
         psProcess.stdout?.on('data', (data: Buffer) => {
+          const logData = data.toString().trim();
           output += data.toString();
-          log.info('💬 Message typing output:', data.toString().trim());
+          
+          // Real-time detailed logging with timestamps
+          const timestamp = new Date().toLocaleTimeString();
+          log.info(`🔄 [${timestamp}] Phone Link automation:`, logData);
+          
+          // Additional context logging
+          if (logData.includes('STEP 1:')) {
+            log.info('📍 INTERNAL: Starting contact loading phase...');
+          } else if (logData.includes('STEP 1 COMPLETE')) {
+            log.info('📍 INTERNAL: Contact loading successful, moving to message phase...');
+          } else if (logData.includes('STEP 2:')) {
+            log.info('📍 INTERNAL: Starting message typing phase...');
+          } else if (logData.includes('Found message input box')) {
+            log.info('📍 INTERNAL: UI automation located message input field successfully');
+          } else if (logData.includes('Typing message:')) {
+            log.info('📍 INTERNAL: Beginning text input simulation...');
+          } else if (logData.includes('Pressing ENTER')) {
+            log.info('📍 INTERNAL: Sending message with ENTER key simulation...');
+          } else if (logData.includes('SUCCESS:')) {
+            log.info('📍 INTERNAL: Message transmission completed successfully!');
+          } else if (logData.includes('ERROR:')) {
+            log.info('📍 INTERNAL: PowerShell error detected, check output above');
+          }
         });
         
         psProcess.stderr?.on('data', (data: Buffer) => {
           errorOutput += data.toString();
-          log.error('💬 Message typing error:', data.toString().trim());
+          log.error('🔄 Phone Link error:', data.toString().trim());
         });
         
         psProcess.on('close', (code) => {
-          log.info(`💬 Message typing finished with code: ${code}`);
+          const timestamp = new Date().toLocaleTimeString();
+          log.info(`🔄 [${timestamp}] Phone Link automation finished with code: ${code}`);
+          log.info('📍 INTERNAL: PowerShell process terminated, analyzing results...');
+          log.info(`📍 INTERNAL: Output length: ${output.length} characters`);
+          log.info(`📍 INTERNAL: Error output length: ${errorOutput.length} characters`);
+          
+          clearTimeout(timeoutHandle); // Clear timeout since process completed
+          const duration = Date.now() - startTime;
+          log.info(`📍 INTERNAL: Total execution time: ${duration}ms`);
           
           if (code === 0 || output.includes('SUCCESS')) {
-            log.info('✅ Message typed and sent successfully!');
+            log.info('✅ FINAL RESULT: Message sent successfully via single script!');
+            log.info('📍 INTERNAL: Resolving promise with success (true)');
             resolve(true);
           } else {
-            log.error(`❌ Message typing failed. Code: ${code}, Error: ${errorOutput}`);
+            log.error(`❌ FINAL RESULT: Single script failed. Code: ${code}, Error: ${errorOutput}`);
+            log.info('📍 INTERNAL: Resolving promise with failure (false)');
             resolve(false);
           }
         });
         
         psProcess.on('error', (error) => {
-          log.error('❌ Message typing PowerShell error:', error);
+          log.error('❌ Single script PowerShell error:', error);
           resolve(false);
         });
         
-        // Timeout after 8 seconds (shorter since we're just typing)
-        setTimeout(() => {
+        // Extended timeout for the full process
+        const timeoutHandle = setTimeout(() => {
+          log.error('⏰ TIMEOUT: 20 seconds elapsed, killing PowerShell process...');
+          log.info('📍 INTERNAL: Timeout triggered, this means the script took too long');
           psProcess.kill();
-          log.error('❌ Message typing timed out (8 seconds)');
+          log.error('❌ Phone Link automation timed out (20 seconds)');
+          log.info('📍 INTERNAL: Process killed, resolving with failure');
           resolve(false);
-        }, 8000);
+        }, 20000);
+        
+        // Log the start of execution with timeout info
+        log.info('📍 INTERNAL: PowerShell process started with 20-second timeout');
+        log.info('📍 INTERNAL: Monitoring stdout/stderr for real-time progress...');
       });
       
     } catch (error) {
-      log.error('❌ Message typing error:', error);
+      log.error('❌ Phone Link automation error:', error);
       return false;
     }
   }

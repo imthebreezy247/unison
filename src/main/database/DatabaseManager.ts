@@ -292,7 +292,7 @@ export interface CallLog {
   duration: number;
   start_time: string;
   end_time?: string;
-  call_status: 'completed' | 'failed' | 'busy' | 'declined' | 'no_answer';
+  call_status: 'initiating' | 'ringing' | 'completed' | 'failed' | 'busy' | 'declined' | 'no_answer';
   call_quality: 'excellent' | 'good' | 'fair' | 'poor';
   device_used?: string;
   call_notes?: string;
@@ -468,7 +468,7 @@ export class DatabaseManager {
         duration INTEGER DEFAULT 0, -- in seconds
         start_time DATETIME NOT NULL,
         end_time DATETIME,
-        call_status TEXT CHECK(call_status IN ('completed', 'failed', 'busy', 'declined', 'no_answer')) DEFAULT 'completed',
+        call_status TEXT CHECK(call_status IN ('initiating', 'ringing', 'completed', 'failed', 'busy', 'declined', 'no_answer')) DEFAULT 'initiating',
         call_quality TEXT CHECK(call_quality IN ('excellent', 'good', 'fair', 'poor')) DEFAULT 'good',
         device_used TEXT, -- iPhone, iPad, Mac, etc.
         call_notes TEXT, -- User notes about the call

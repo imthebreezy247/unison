@@ -9,6 +9,7 @@ import { NotificationManager } from './services/NotificationManager';
 import { ContactSyncService } from './services/ContactSyncService';
 import { ContactImportExportService } from './services/ContactImportExportService';
 import { MessageSyncService } from './services/MessageSyncService';
+import { CRMIntegrationService } from './services/CRMIntegrationService';
 import { CallLogService } from './services/CallLogService';
 import { FileManagerService } from './services/FileManagerService';
 import { SettingsService } from './services/SettingsService';
@@ -28,6 +29,7 @@ class UnisonXApp {
   private contactSyncService: ContactSyncService;
   private contactImportExportService: ContactImportExportService;
   private messageSyncService: MessageSyncService;
+  private crmIntegrationService: CRMIntegrationService;
   private callLogService: CallLogService;
   private fileManagerService: FileManagerService;
   private settingsService: SettingsService;
@@ -43,6 +45,7 @@ class UnisonXApp {
     this.contactSyncService = new ContactSyncService(this.databaseManager);
     this.contactImportExportService = new ContactImportExportService(this.databaseManager);
     this.messageSyncService = new MessageSyncService(this.databaseManager, this.phoneLinkBridge);
+    this.crmIntegrationService = new CRMIntegrationService(this.databaseManager, new (require('./services/WindowsUIAutomation').WindowsUIAutomation)());
     this.callLogService = new CallLogService(this.databaseManager);
     this.fileManagerService = new FileManagerService(this.databaseManager);
     this.settingsService = new SettingsService(this.databaseManager);
@@ -371,6 +374,61 @@ class UnisonXApp {
         return await this.contactSyncService.getFavoriteContacts();
       } catch (error) {
         log.error('Get favorite contacts error:', error);
+        throw error;
+      }
+    });
+
+    // CRM Integration operations
+    ipcMain.handle('crm:get-config', async () => {
+      try {
+        return this.crmIntegrationService.getConfig();
+      } catch (error) {
+        log.error('Get CRM config error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('crm:update-config', async (event, config: any) => {
+      try {
+        return await this.crmIntegrationService.updateConfig(config);
+      } catch (error) {
+        log.error('Update CRM config error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('crm:create-campaign', async (event, name: string, description: string, messageTemplate: string, contactFilter?: string, scheduledStart?: Date) => {
+      try {
+        return await this.crmIntegrationService.createCampaign(name, description, messageTemplate, contactFilter, scheduledStart);
+      } catch (error) {
+        log.error('Create campaign error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('crm:start-campaign', async (event, campaignId: string) => {
+      try {
+        return await this.crmIntegrationService.startCampaign(campaignId);
+      } catch (error) {
+        log.error('Start campaign error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('crm:get-campaigns', async () => {
+      try {
+        return await this.crmIntegrationService.getCampaigns();
+      } catch (error) {
+        log.error('Get campaigns error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('crm:get-campaign-stats', async (event, campaignId: string) => {
+      try {
+        return await this.crmIntegrationService.getCampaignStats(campaignId);
+      } catch (error) {
+        log.error('Get campaign stats error:', error);
         throw error;
       }
     });
@@ -1038,6 +1096,10 @@ class UnisonXApp {
       await this.contactSyncService.initialize();
       log.info('✅ Contact sync service initialized');
 
+      // Initialize CRM integration service
+      await this.crmIntegrationService.initialize();
+      log.info('✅ CRM integration service initialized');
+
       // Initialize Phone Link message sync service
       await this.messageSyncService.initialize();
       log.info('✅ Phone Link message service initialized');
@@ -1067,6 +1129,7 @@ class UnisonXApp {
       await this.deviceManager.cleanup();
       this.contactSyncService.cleanup();
       this.messageSyncService.cleanup();
+      await this.crmIntegrationService.cleanup();
       this.callLogService.cleanup();
       this.fileManagerService.cleanup();
       this.settingsService.cleanup();
