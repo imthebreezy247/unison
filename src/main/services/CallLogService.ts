@@ -253,17 +253,44 @@ export class CallLogService {
       callType,
       0,
       startTime,
-      'connecting',
+      'initiating',
       'iPhone'
     ]);
 
-    // TODO: Actually initiate call via iPhone APIs
+    // Actually initiate call via Phone Link automation
     log.info(`Call initiated: ${callId} to ${phoneNumber} (${callType})`);
     
-    // Simulate call connection after 2 seconds
-    setTimeout(() => {
-      this.updateCallStatus(callId, 'connected');
-    }, 2000);
+    // Import the WindowsUIAutomation class
+    const { WindowsUIAutomation } = await import('./WindowsUIAutomation');
+    const uiAutomation = new WindowsUIAutomation();
+    
+    // TEMPORARY: First explore the UI to understand the interface
+    log.info('🔍 Running UI exploration before attempting call...');
+    await uiAutomation.explorePhoneLinkCallsInterface();
+    
+    // Attempt to make the call through Phone Link
+    try {
+      const callSuccess = await uiAutomation.makeCallThroughPhoneLink(phoneNumber);
+      if (callSuccess) {
+        log.info(`✅ Phone Link call automation successful for ${phoneNumber}`);
+        // Update to ringing status
+        setTimeout(() => {
+          this.updateCallStatus(callId, 'ringing');
+        }, 1000);
+      } else {
+        log.error(`❌ Phone Link call automation failed for ${phoneNumber}`);
+        // Update to failed status
+        setTimeout(async () => {
+          await this.updateCallStatusToDatabaseOnly(callId, 'failed');
+        }, 1000);
+      }
+    } catch (error) {
+      log.error(`❌ Phone Link call automation error for ${phoneNumber}:`, error);
+      // Update to failed status
+      setTimeout(async () => {
+        await this.updateCallStatusToDatabaseOnly(callId, 'failed');
+      }, 1000);
+    }
     
     return callId;
   }
@@ -308,9 +335,26 @@ export class CallLogService {
       UPDATE call_logs 
       SET call_status = ?, updated_at = ?
       WHERE id = ?
-    `, [status === 'connected' ? 'completed' : 'connecting', new Date().toISOString(), callId]);
+    `, [status === 'connected' ? 'completed' : 'ringing', new Date().toISOString(), callId]);
     
     log.info(`Call status updated: ${callId} -> ${status}`);
+  }
+
+  /**
+   * Update call status directly in database (for failed calls)
+   */
+  private async updateCallStatusToDatabaseOnly(callId: string, status: 'failed' | 'busy' | 'declined' | 'no_answer'): Promise<void> {
+    // Remove from active calls since it failed
+    this.activeCalls.delete(callId);
+
+    // Update database
+    await this.databaseManager.run(`
+      UPDATE call_logs 
+      SET call_status = ?, updated_at = ?
+      WHERE id = ?
+    `, [status, new Date().toISOString(), callId]);
+    
+    log.info(`Call status updated to database: ${callId} -> ${status}`);
   }
 
   /**

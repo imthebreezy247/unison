@@ -896,6 +896,36 @@ export class DatabaseManager {
     log.info('Database tables created successfully');
   }
 
+  private async createCallLogTable(): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS call_logs (
+        id TEXT PRIMARY KEY,
+        contact_id TEXT,
+        phone_number TEXT NOT NULL,
+        contact_name TEXT, -- Cached for performance
+        direction TEXT CHECK(direction IN ('incoming', 'outgoing', 'missed', 'blocked', 'voicemail')) NOT NULL,
+        call_type TEXT CHECK(call_type IN ('voice', 'video', 'facetime', 'conference')) DEFAULT 'voice',
+        duration INTEGER DEFAULT 0, -- in seconds
+        start_time DATETIME NOT NULL,
+        end_time DATETIME,
+        call_status TEXT CHECK(call_status IN ('initiating', 'ringing', 'completed', 'failed', 'busy', 'declined', 'no_answer')) DEFAULT 'initiating',
+        call_quality TEXT CHECK(call_quality IN ('excellent', 'good', 'fair', 'poor')) DEFAULT 'good',
+        device_used TEXT, -- iPhone, iPad, Mac, etc.
+        call_notes TEXT, -- User notes about the call
+        voicemail_path TEXT, -- Path to voicemail file if applicable
+        voicemail_transcription TEXT, -- AI transcription of voicemail
+        location_data TEXT, -- JSON location data if available
+        emergency_call BOOLEAN DEFAULT FALSE,
+        spam_likely BOOLEAN DEFAULT FALSE,
+        archived BOOLEAN DEFAULT FALSE,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (contact_id) REFERENCES contacts (id)
+      )
+    `);
+  }
+
   async query(sql: string, params: any[] = []): Promise<any[]> {
     if (!this.db) throw new Error('Database not initialized');
     
@@ -1076,6 +1106,54 @@ export class DatabaseManager {
       await addColumnIfNotExists('sync_history', 'completed', 'BOOLEAN DEFAULT 1');
       await addColumnIfNotExists('file_transfers', 'completed', 'BOOLEAN DEFAULT 0');
       await addColumnIfNotExists('backup_history', 'completed', 'BOOLEAN DEFAULT 0');
+
+      // Migration: Update call_logs table to support 'initiating' and 'ringing' statuses
+      const migrations = await this.query('SELECT version FROM schema_migrations WHERE version = ?', ['call_status_update_v1']);
+      
+      if (migrations.length === 0) {
+        log.info('🔧 Running migration: Update call_status constraint to include initiating/ringing...');
+        
+        // Check if call_logs table exists
+        const tables = await this.query("SELECT name FROM sqlite_master WHERE type='table' AND name='call_logs'");
+        
+        if (tables.length > 0) {
+          // Backup existing data
+          await this.run('CREATE TEMPORARY TABLE call_logs_backup AS SELECT * FROM call_logs');
+          
+          // Drop the old table
+          await this.run('DROP TABLE call_logs');
+          
+          // Recreate with new constraint
+          await this.createCallLogTable();
+          
+          // Restore data with updated status mapping
+          await this.run(`
+            INSERT INTO call_logs 
+            SELECT id, contact_id, phone_number, contact_name, direction, call_type, duration, 
+                   start_time, end_time, 
+                   CASE 
+                     WHEN call_status = 'completed' THEN 'completed'
+                     WHEN call_status = 'failed' THEN 'failed' 
+                     WHEN call_status = 'busy' THEN 'busy'
+                     WHEN call_status = 'declined' THEN 'declined'
+                     WHEN call_status = 'no_answer' THEN 'no_answer'
+                     ELSE 'initiating'
+                   END as call_status,
+                   call_quality, device_used, call_notes, voicemail_path, voicemail_transcription,
+                   location_data, emergency_call, spam_likely, archived, created_at, updated_at
+            FROM call_logs_backup
+          `);
+          
+          // Clean up backup
+          await this.run('DROP TABLE call_logs_backup');
+          
+          log.info('✅ Call logs table updated with new status constraints');
+        }
+        
+        // Mark migration as completed
+        await this.run('INSERT INTO schema_migrations (version) VALUES (?)', ['call_status_update_v1']);
+        log.info('📝 Migration call_status_update_v1 completed');
+      }
       await addColumnIfNotExists('message_threads', 'last_message_content', 'TEXT');
 
       // Create indexes if they don't exist

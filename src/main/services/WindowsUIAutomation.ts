@@ -436,4 +436,429 @@ WScript.Echo "SUCCESS"
       });
     });
   }
+
+  /**
+   * Explore Phone Link UI elements for calls debugging
+   */
+  public async explorePhoneLinkCallsInterface(): Promise<boolean> {
+    log.info(`🔍 EXPLORING Phone Link calls interface...`);
+    
+    try {
+      const psScript = `
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName UIAutomationClient
+Add-Type -AssemblyName UIAutomationTypes
+
+# Start Phone Link if not already running
+Start-Process "ms-phone:" -WindowStyle Normal
+Start-Sleep -Milliseconds 2000
+
+try {
+  # Find Phone Link process
+  $phoneProcess = Get-Process -Name "PhoneExperienceHost" -ErrorAction SilentlyContinue
+  
+  if (-not $phoneProcess) {
+    Write-Output "ERROR: Phone Link process not found"
+    exit 1
+  }
+  
+  # Get Phone Link window
+  $mainWindowHandle = $phoneProcess.MainWindowHandle
+  $phoneLinkWindow = [System.Windows.Automation.AutomationElement]::FromHandle($mainWindowHandle)
+  
+  if (-not $phoneLinkWindow) {
+    Write-Output "ERROR: Could not access Phone Link window"
+    exit 1
+  }
+  
+  Write-Output "=== EXPLORING PHONE LINK UI STRUCTURE ==="
+  
+  # Get all buttons and their names
+  $buttonCondition = [System.Windows.Automation.PropertyCondition]::new(
+    [System.Windows.Automation.AutomationElement]::ControlTypeProperty, 
+    [System.Windows.Automation.ControlType]::Button
+  )
+  $buttons = $phoneLinkWindow.FindAll([System.Windows.Automation.TreeScope]::Descendants, $buttonCondition)
+  
+  Write-Output "=== ALL BUTTONS FOUND ==="
+  foreach ($button in $buttons) {
+    $name = $button.Current.Name
+    $automationId = $button.Current.AutomationId
+    Write-Output "BUTTON: Name='$name' AutomationId='$automationId'"
+  }
+  
+  # Get all tabs and navigation items
+  $tabCondition = [System.Windows.Automation.PropertyCondition]::new(
+    [System.Windows.Automation.AutomationElement]::ControlTypeProperty, 
+    [System.Windows.Automation.ControlType]::TabItem
+  )
+  $tabs = $phoneLinkWindow.FindAll([System.Windows.Automation.TreeScope]::Descendants, $tabCondition)
+  
+  Write-Output "=== ALL TABS/NAVIGATION ITEMS ==="
+  foreach ($tab in $tabs) {
+    $name = $tab.Current.Name
+    $automationId = $tab.Current.AutomationId
+    Write-Output "TAB: Name='$name' AutomationId='$automationId'"
+  }
+  
+  # Get all list items (navigation might be a list)
+  $listItemCondition = [System.Windows.Automation.PropertyCondition]::new(
+    [System.Windows.Automation.AutomationElement]::ControlTypeProperty, 
+    [System.Windows.Automation.ControlType]::ListItem
+  )
+  $listItems = $phoneLinkWindow.FindAll([System.Windows.Automation.TreeScope]::Descendants, $listItemCondition)
+  
+  Write-Output "=== ALL LIST ITEMS ==="
+  foreach ($item in $listItems) {
+    $name = $item.Current.Name
+    $automationId = $item.Current.AutomationId
+    Write-Output "LIST_ITEM: Name='$name' AutomationId='$automationId'"
+  }
+  
+  # Get all text fields
+  $editCondition = [System.Windows.Automation.PropertyCondition]::new(
+    [System.Windows.Automation.AutomationElement]::ControlTypeProperty, 
+    [System.Windows.Automation.ControlType]::Edit
+  )
+  $edits = $phoneLinkWindow.FindAll([System.Windows.Automation.TreeScope]::Descendants, $editCondition)
+  
+  Write-Output "=== ALL TEXT INPUT FIELDS ==="
+  foreach ($edit in $edits) {
+    $name = $edit.Current.Name
+    $automationId = $edit.Current.AutomationId
+    Write-Output "TEXT_FIELD: Name='$name' AutomationId='$automationId'"
+  }
+  
+  Write-Output "=== EXPLORATION COMPLETE ==="
+  Write-Output "SUCCESS: UI exploration completed"
+  
+} catch {
+  Write-Output "ERROR: " + $_.Exception.Message
+  exit 1
+}
+`;
+
+      return new Promise<boolean>((resolve) => {
+        const psProcess = spawn('powershell.exe', [
+          '-NoProfile',
+          '-ExecutionPolicy', 'Bypass',
+          '-Command', psScript
+        ], {
+          stdio: ['ignore', 'pipe', 'pipe'],
+          windowsHide: true
+        });
+
+        let output = '';
+        let errorOutput = '';
+        
+        psProcess.stdout?.on('data', (data: Buffer) => {
+          const logData = data.toString().trim();
+          output += data.toString();
+          
+          const timestamp = new Date().toLocaleTimeString();
+          log.info(`🔍 [${timestamp}] Phone Link UI exploration:`, logData);
+        });
+        
+        psProcess.stderr?.on('data', (data: Buffer) => {
+          errorOutput += data.toString();
+          log.error('🔍 Phone Link exploration error:', data.toString().trim());
+        });
+        
+        psProcess.on('close', (code) => {
+          const timestamp = new Date().toLocaleTimeString();
+          log.info(`🔍 [${timestamp}] Phone Link UI exploration finished with code: ${code}`);
+          
+          if (code === 0 || output.includes('SUCCESS')) {
+            log.info('✅ Phone Link UI exploration completed successfully!');
+            resolve(true);
+          } else {
+            log.error(`❌ Phone Link UI exploration failed. Code: ${code}, Error: ${errorOutput}`);
+            resolve(false);
+          }
+        });
+        
+        psProcess.on('error', (error) => {
+          log.error('❌ Phone Link exploration PowerShell error:', error);
+          resolve(false);
+        });
+        
+        // Timeout
+        setTimeout(() => {
+          log.error('⏰ Phone Link UI exploration timed out');
+          psProcess.kill();
+          resolve(false);
+        }, 10000);
+      });
+      
+    } catch (error) {
+      log.error('❌ Phone Link UI exploration error:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Phone Link call automation - Make a phone call through Phone Link
+   */
+  public async makeCallThroughPhoneLink(phoneNumber: string): Promise<boolean> {
+    const startTime = Date.now();
+    log.info(`📞 PHONE CALL automation to ${phoneNumber}`);
+    log.info(`📍 INTERNAL: Call function started at ${new Date().toLocaleTimeString()}`);
+    
+    try {
+      const psScript = `
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName UIAutomationClient
+Add-Type -AssemblyName UIAutomationTypes
+
+# Start Phone Link if not already running
+Start-Process "ms-phone:" -WindowStyle Normal
+Start-Sleep -Milliseconds 2000
+
+try {
+  # Find Phone Link process
+  $phoneProcess = Get-Process -Name "PhoneExperienceHost" -ErrorAction SilentlyContinue
+  
+  if (-not $phoneProcess) {
+    Write-Output "ERROR: Phone Link process not found"
+    exit 1
+  }
+  
+  # Get Phone Link window
+  $mainWindowHandle = $phoneProcess.MainWindowHandle
+  $phoneLinkWindow = [System.Windows.Automation.AutomationElement]::FromHandle($mainWindowHandle)
+  
+  if (-not $phoneLinkWindow) {
+    Write-Output "ERROR: Could not access Phone Link window"
+    exit 1
+  }
+  
+  Write-Output "STEP 1: Navigating to Calls section..."
+  
+  # 1. Look for Calls tab/button (this might be "Calls" or have a phone icon)
+  $callsTabCondition = [System.Windows.Automation.PropertyCondition]::new(
+    [System.Windows.Automation.AutomationElement]::NameProperty, 
+    "Calls"
+  )
+  $callsTab = $phoneLinkWindow.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $callsTabCondition)
+  
+  if ($callsTab) {
+    Write-Output "Found Calls tab, clicking..."
+    $invokePattern = $callsTab.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
+    $invokePattern.Invoke()
+    Start-Sleep -Milliseconds 1000
+  } else {
+    Write-Output "Calls tab not found, trying alternative navigation..."
+  }
+  
+  Write-Output "STEP 2: Looking for dialer or new call button..."
+  
+  # 2. Look for "New call", "Make call", dialer button, or phone icon
+  $newCallConditions = @(
+    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "New call"),
+    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "Make call"),
+    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "Make a call"),
+    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "Call"),
+    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "CallButton")
+  )
+  
+  $newCallButton = $null
+  foreach ($condition in $newCallConditions) {
+    $newCallButton = $phoneLinkWindow.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $condition)
+    if ($newCallButton) {
+      Write-Output "Found call button: " + $newCallButton.Current.Name
+      break
+    }
+  }
+  
+  if ($newCallButton) {
+    Write-Output "Clicking new call button..."
+    $invokePattern = $newCallButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
+    $invokePattern.Invoke()
+    Start-Sleep -Milliseconds 1500
+  } else {
+    Write-Output "No call button found, trying keyboard shortcut..."
+    # Try Ctrl+Shift+C or other common shortcuts for calling
+    [System.Windows.Forms.SendKeys]::SendWait("^+c")
+    Start-Sleep -Milliseconds 1000
+  }
+  
+  Write-Output "STEP 3: Looking for phone number input field..."
+  
+  # 3. Find phone number input field
+  $numberInputConditions = @(
+    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "PhoneNumberInput"),
+    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "NumberInput"),
+    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "Phone number"),
+    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "Enter phone number")
+  )
+  
+  $numberInput = $null
+  foreach ($condition in $numberInputConditions) {
+    $numberInput = $phoneLinkWindow.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $condition)
+    if ($numberInput) {
+      Write-Output "Found number input field: " + $numberInput.Current.Name
+      break
+    }
+  }
+  
+  # Also try finding by control type (Edit control)
+  if (-not $numberInput) {
+    $editCondition = [System.Windows.Automation.PropertyCondition]::new(
+      [System.Windows.Automation.AutomationElement]::ControlTypeProperty, 
+      [System.Windows.Automation.ControlType]::Edit
+    )
+    $editControls = $phoneLinkWindow.FindAll([System.Windows.Automation.TreeScope]::Descendants, $editCondition)
+    
+    foreach ($edit in $editControls) {
+      $name = $edit.Current.Name
+      if ($name -like "*phone*" -or $name -like "*number*" -or $name -eq "") {
+        $numberInput = $edit
+        Write-Output "Found potential number input: " + $name
+        break
+      }
+    }
+  }
+  
+  if ($numberInput) {
+    Write-Output "STEP 4: Entering phone number ${phoneNumber}..."
+    
+    # Click to focus the input field
+    $invokePattern = $numberInput.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
+    if ($invokePattern) {
+      $invokePattern.Invoke()
+    }
+    Start-Sleep -Milliseconds 500
+    
+    # Clear any existing text and enter the phone number
+    [System.Windows.Forms.SendKeys]::SendWait("^a")
+    Start-Sleep -Milliseconds 200
+    [System.Windows.Forms.SendKeys]::SendWait("${phoneNumber}")
+    Start-Sleep -Milliseconds 1000
+    
+    Write-Output "STEP 5: Looking for call/dial button..."
+    
+    # 4. Find and click the actual call/dial button
+    $dialButtonConditions = @(
+      [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "Call"),
+      [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "Dial"),
+      [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "Make call"),
+      [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "DialButton"),
+      [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "CallButton")
+    )
+    
+    $dialButton = $null
+    foreach ($condition in $dialButtonConditions) {
+      $dialButton = $phoneLinkWindow.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $condition)
+      if ($dialButton) {
+        Write-Output "Found dial button: " + $dialButton.Current.Name
+        break
+      }
+    }
+    
+    if ($dialButton) {
+      Write-Output "Clicking dial button to initiate call..."
+      $invokePattern = $dialButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
+      $invokePattern.Invoke()
+      Start-Sleep -Milliseconds 2000
+      
+      Write-Output "SUCCESS: Phone call initiated to ${phoneNumber}"
+    } else {
+      Write-Output "Dial button not found, trying ENTER key..."
+      [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
+      Start-Sleep -Milliseconds 2000
+      Write-Output "SUCCESS: Call initiated via ENTER key to ${phoneNumber}"
+    }
+    
+  } else {
+    Write-Output "ERROR: Could not find phone number input field"
+    exit 1
+  }
+  
+} catch {
+  Write-Output "ERROR: " + $_.Exception.Message
+  exit 1
+}
+`;
+
+      return new Promise<boolean>((resolve) => {
+        const psProcess = spawn('powershell.exe', [
+          '-NoProfile',
+          '-ExecutionPolicy', 'Bypass',
+          '-Command', psScript
+        ], {
+          stdio: ['ignore', 'pipe', 'pipe'],
+          windowsHide: true
+        });
+
+        let output = '';
+        let errorOutput = '';
+        
+        psProcess.stdout?.on('data', (data: Buffer) => {
+          const logData = data.toString().trim();
+          output += data.toString();
+          
+          const timestamp = new Date().toLocaleTimeString();
+          log.info(`📞 [${timestamp}] Phone call automation:`, logData);
+          
+          // Additional context logging for calls
+          if (logData.includes('STEP 1:')) {
+            log.info('📍 INTERNAL: Navigating to calls section...');
+          } else if (logData.includes('STEP 2:')) {
+            log.info('📍 INTERNAL: Looking for dial interface...');
+          } else if (logData.includes('STEP 3:')) {
+            log.info('📍 INTERNAL: Searching for number input field...');
+          } else if (logData.includes('STEP 4:')) {
+            log.info('📍 INTERNAL: Entering phone number...');
+          } else if (logData.includes('STEP 5:')) {
+            log.info('📍 INTERNAL: Initiating call...');
+          } else if (logData.includes('SUCCESS:')) {
+            log.info('📍 INTERNAL: Call initiated successfully!');
+          } else if (logData.includes('ERROR:')) {
+            log.info('📍 INTERNAL: PowerShell error detected during call automation');
+          }
+        });
+        
+        psProcess.stderr?.on('data', (data: Buffer) => {
+          errorOutput += data.toString();
+          log.error('📞 Phone call error:', data.toString().trim());
+        });
+        
+        psProcess.on('close', (code) => {
+          const timestamp = new Date().toLocaleTimeString();
+          log.info(`📞 [${timestamp}] Phone call automation finished with code: ${code}`);
+          
+          clearTimeout(timeoutHandle);
+          const duration = Date.now() - startTime;
+          log.info(`📍 INTERNAL: Total call automation time: ${duration}ms`);
+          
+          if (code === 0 || output.includes('SUCCESS')) {
+            log.info('✅ FINAL RESULT: Phone call initiated successfully!');
+            resolve(true);
+          } else {
+            log.error(`❌ FINAL RESULT: Call automation failed. Code: ${code}, Error: ${errorOutput}`);
+            resolve(false);
+          }
+        });
+        
+        psProcess.on('error', (error) => {
+          log.error('❌ Phone call PowerShell error:', error);
+          resolve(false);
+        });
+        
+        // Timeout for call automation
+        const timeoutHandle = setTimeout(() => {
+          log.error('⏰ TIMEOUT: 15 seconds elapsed, killing call automation...');
+          psProcess.kill();
+          log.error('❌ Phone call automation timed out (15 seconds)');
+          resolve(false);
+        }, 15000);
+        
+        log.info('📍 INTERNAL: Phone call PowerShell process started with 15-second timeout');
+      });
+      
+    } catch (error) {
+      log.error('❌ Phone call automation error:', error);
+      return false;
+    }
+  }
 }
