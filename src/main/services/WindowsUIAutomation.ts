@@ -605,179 +605,32 @@ try {
     log.info(`📍 INTERNAL: Call function started at ${new Date().toLocaleTimeString()}`);
     
     try {
+      // SIMPLIFIED APPROACH - Using keyboard shortcuts
       const psScript = `
 Add-Type -AssemblyName System.Windows.Forms
-Add-Type -AssemblyName UIAutomationClient
-Add-Type -AssemblyName UIAutomationTypes
 
 # Start Phone Link if not already running
 Start-Process "ms-phone:" -WindowStyle Normal
-Start-Sleep -Milliseconds 2000
+Start-Sleep -Seconds 2
 
-try {
-  # Find Phone Link process
-  $phoneProcess = Get-Process -Name "PhoneExperienceHost" -ErrorAction SilentlyContinue
-  
-  if (-not $phoneProcess) {
-    Write-Output "ERROR: Phone Link process not found"
-    exit 1
-  }
-  
-  # Get Phone Link window
-  $mainWindowHandle = $phoneProcess.MainWindowHandle
-  $phoneLinkWindow = [System.Windows.Automation.AutomationElement]::FromHandle($mainWindowHandle)
-  
-  if (-not $phoneLinkWindow) {
-    Write-Output "ERROR: Could not access Phone Link window"
-    exit 1
-  }
-  
-  Write-Output "STEP 1: Navigating to Calls section..."
-  
-  # 1. Look for Calls tab/button (this might be "Calls" or have a phone icon)
-  $callsTabCondition = [System.Windows.Automation.PropertyCondition]::new(
-    [System.Windows.Automation.AutomationElement]::NameProperty, 
-    "Calls"
-  )
-  $callsTab = $phoneLinkWindow.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $callsTabCondition)
-  
-  if ($callsTab) {
-    Write-Output "Found Calls tab, clicking..."
-    $invokePattern = $callsTab.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
-    $invokePattern.Invoke()
-    Start-Sleep -Milliseconds 1000
-  } else {
-    Write-Output "Calls tab not found, trying alternative navigation..."
-  }
-  
-  Write-Output "STEP 2: Looking for dialer or new call button..."
-  
-  # 2. Look for "New call", "Make call", dialer button, or phone icon
-  $newCallConditions = @(
-    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "New call"),
-    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "Make call"),
-    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "Make a call"),
-    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "Call"),
-    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "CallButton")
-  )
-  
-  $newCallButton = $null
-  foreach ($condition in $newCallConditions) {
-    $newCallButton = $phoneLinkWindow.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $condition)
-    if ($newCallButton) {
-      Write-Output "Found call button: " + $newCallButton.Current.Name
-      break
-    }
-  }
-  
-  if ($newCallButton) {
-    Write-Output "Clicking new call button..."
-    $invokePattern = $newCallButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
-    $invokePattern.Invoke()
-    Start-Sleep -Milliseconds 1500
-  } else {
-    Write-Output "No call button found, trying keyboard shortcut..."
-    # Try Ctrl+Shift+C or other common shortcuts for calling
-    [System.Windows.Forms.SendKeys]::SendWait("^+c")
-    Start-Sleep -Milliseconds 1000
-  }
-  
-  Write-Output "STEP 3: Looking for phone number input field..."
-  
-  # 3. Find phone number input field
-  $numberInputConditions = @(
-    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "PhoneNumberInput"),
-    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "NumberInput"),
-    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "Phone number"),
-    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "Enter phone number")
-  )
-  
-  $numberInput = $null
-  foreach ($condition in $numberInputConditions) {
-    $numberInput = $phoneLinkWindow.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $condition)
-    if ($numberInput) {
-      Write-Output "Found number input field: " + $numberInput.Current.Name
-      break
-    }
-  }
-  
-  # Also try finding by control type (Edit control)
-  if (-not $numberInput) {
-    $editCondition = [System.Windows.Automation.PropertyCondition]::new(
-      [System.Windows.Automation.AutomationElement]::ControlTypeProperty, 
-      [System.Windows.Automation.ControlType]::Edit
-    )
-    $editControls = $phoneLinkWindow.FindAll([System.Windows.Automation.TreeScope]::Descendants, $editCondition)
-    
-    foreach ($edit in $editControls) {
-      $name = $edit.Current.Name
-      if ($name -like "*phone*" -or $name -like "*number*" -or $name -eq "") {
-        $numberInput = $edit
-        Write-Output "Found potential number input: " + $name
-        break
-      }
-    }
-  }
-  
-  if ($numberInput) {
-    Write-Output "STEP 4: Entering phone number ${phoneNumber}..."
-    
-    # Click to focus the input field
-    $invokePattern = $numberInput.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
-    if ($invokePattern) {
-      $invokePattern.Invoke()
-    }
-    Start-Sleep -Milliseconds 500
-    
-    # Clear any existing text and enter the phone number
-    [System.Windows.Forms.SendKeys]::SendWait("^a")
-    Start-Sleep -Milliseconds 200
-    [System.Windows.Forms.SendKeys]::SendWait("${phoneNumber}")
-    Start-Sleep -Milliseconds 1000
-    
-    Write-Output "STEP 5: Looking for call/dial button..."
-    
-    # 4. Find and click the actual call/dial button
-    $dialButtonConditions = @(
-      [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "Call"),
-      [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "Dial"),
-      [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "Make call"),
-      [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "DialButton"),
-      [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "CallButton")
-    )
-    
-    $dialButton = $null
-    foreach ($condition in $dialButtonConditions) {
-      $dialButton = $phoneLinkWindow.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $condition)
-      if ($dialButton) {
-        Write-Output "Found dial button: " + $dialButton.Current.Name
-        break
-      }
-    }
-    
-    if ($dialButton) {
-      Write-Output "Clicking dial button to initiate call..."
-      $invokePattern = $dialButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
-      $invokePattern.Invoke()
-      Start-Sleep -Milliseconds 2000
-      
-      Write-Output "SUCCESS: Phone call initiated to ${phoneNumber}"
-    } else {
-      Write-Output "Dial button not found, trying ENTER key..."
-      [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
-      Start-Sleep -Milliseconds 2000
-      Write-Output "SUCCESS: Call initiated via ENTER key to ${phoneNumber}"
-    }
-    
-  } else {
-    Write-Output "ERROR: Could not find phone number input field"
-    exit 1
-  }
-  
-} catch {
-  Write-Output "ERROR: " + $_.Exception.Message
-  exit 1
-}
+Write-Output "STEP 1: Phone Link launched"
+
+# Try Ctrl+D for dial pad (common shortcut)
+Write-Output "STEP 2: Opening dial pad with Ctrl+D..."
+[System.Windows.Forms.SendKeys]::SendWait("^d")
+Start-Sleep -Milliseconds 1500
+
+# Type the phone number
+Write-Output "STEP 3: Typing phone number ${phoneNumber}..."
+[System.Windows.Forms.SendKeys]::SendWait("${phoneNumber}")
+Start-Sleep -Milliseconds 1000
+
+# Press Enter to initiate call
+Write-Output "STEP 4: Pressing Enter to call..."
+[System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
+Start-Sleep -Milliseconds 500
+
+Write-Output "SUCCESS: Call command sent to Phone Link for ${phoneNumber}"
 `;
 
       return new Promise<boolean>((resolve) => {

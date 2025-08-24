@@ -264,10 +264,6 @@ export class CallLogService {
     const { WindowsUIAutomation } = await import('./WindowsUIAutomation');
     const uiAutomation = new WindowsUIAutomation();
     
-    // TEMPORARY: First explore the UI to understand the interface
-    log.info('🔍 Running UI exploration before attempting call...');
-    await uiAutomation.explorePhoneLinkCallsInterface();
-    
     // Attempt to make the call through Phone Link
     try {
       const callSuccess = await uiAutomation.makeCallThroughPhoneLink(phoneNumber);
