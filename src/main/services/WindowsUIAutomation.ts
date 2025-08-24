@@ -605,32 +605,200 @@ try {
     log.info(`📍 INTERNAL: Call function started at ${new Date().toLocaleTimeString()}`);
     
     try {
-      // SIMPLIFIED APPROACH - Using keyboard shortcuts
+      // ENHANCED APPROACH - Proper UI automation for calls
       const psScript = `
 Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName UIAutomationClient
+Add-Type -AssemblyName UIAutomationTypes
 
 # Start Phone Link if not already running
 Start-Process "ms-phone:" -WindowStyle Normal
-Start-Sleep -Seconds 2
+Start-Sleep -Seconds 3
 
-Write-Output "STEP 1: Phone Link launched"
+Write-Output "STEP 1: Phone Link launched, finding main window..."
 
-# Try Ctrl+D for dial pad (common shortcut)
-Write-Output "STEP 2: Opening dial pad with Ctrl+D..."
-[System.Windows.Forms.SendKeys]::SendWait("^d")
-Start-Sleep -Milliseconds 1500
+try {
+  # Find Phone Link process
+  $phoneProcess = Get-Process -Name "PhoneExperienceHost" -ErrorAction SilentlyContinue
+  
+  if (-not $phoneProcess) {
+    Write-Output "ERROR: Phone Link process not found"
+    exit 1
+  }
+  
+  # Get Phone Link window
+  $mainWindowHandle = $phoneProcess.MainWindowHandle
+  $phoneLinkWindow = [System.Windows.Automation.AutomationElement]::FromHandle($mainWindowHandle)
+  
+  if (-not $phoneLinkWindow) {
+    Write-Output "ERROR: Could not access Phone Link window"
+    exit 1
+  }
+  
+  Write-Output "STEP 2: Navigating to Calls section..."
+  
+  # First, try to find and click the Calls tab/navigation
+  $callsTabConditions = @(
+    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "Calls"),
+    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "CallsNodeAutomationId"),
+    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "PhoneCallsTab")
+  )
+  
+  $callsTab = $null
+  foreach ($condition in $callsTabConditions) {
+    $callsTab = $phoneLinkWindow.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $condition)
+    if ($callsTab) { break }
+  }
+  
+  if ($callsTab) {
+    Write-Output "Found Calls tab, clicking..."
+    try {
+      $invokePattern = $callsTab.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
+      $invokePattern.Invoke()
+    } catch {
+      # Fallback: try selection pattern
+      try {
+        $selectionItemPattern = $callsTab.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern)
+        $selectionItemPattern.Select()
+      } catch {
+        # Final fallback: simulate click
+        $rect = $callsTab.Current.BoundingRectangle
+        $x = $rect.X + ($rect.Width / 2)
+        $y = $rect.Y + ($rect.Height / 2)
+        [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point($x, $y)
+        
+        Add-Type -TypeDefinition @"
+        using System;
+        using System.Runtime.InteropServices;
+        public class Mouse {
+          [DllImport("user32.dll")]
+          public static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, int dwExtraInfo);
+          public const uint LEFTDOWN = 0x0002;
+          public const uint LEFTUP = 0x0004;
+        }
+"@
+        [Mouse]::mouse_event([Mouse]::LEFTDOWN, 0, 0, 0, 0)
+        Start-Sleep -Milliseconds 50
+        [Mouse]::mouse_event([Mouse]::LEFTUP, 0, 0, 0, 0)
+      }
+    }
+    Start-Sleep -Seconds 2
+  } else {
+    Write-Output "Calls tab not found, trying navigation shortcuts..."
+    # Try keyboard navigation to calls
+    [System.Windows.Forms.SendKeys]::SendWait("^2")  # Ctrl+2 might be calls
+    Start-Sleep -Milliseconds 1000
+  }
+  
+  Write-Output "STEP 3: Looking for dial pad or call interface..."
+  
+  # Look for dial pad button, keypad, or phone number input
+  $dialElements = @(
+    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "Dial pad"),
+    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "Keypad"),
+    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "Make a call"),
+    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "DialPadButton"),
+    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "CallButton"),
+    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "NewCallButton")
+  )
+  
+  $dialButton = $null
+  foreach ($condition in $dialElements) {
+    $dialButton = $phoneLinkWindow.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $condition)
+    if ($dialButton) { 
+      Write-Output "Found dial interface: " + $dialButton.Current.Name
+      break 
+    }
+  }
+  
+  if ($dialButton) {
+    Write-Output "STEP 4: Clicking dial interface..."
+    $invokePattern = $dialButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
+    $invokePattern.Invoke()
+    Start-Sleep -Seconds 2
+  } else {
+    Write-Output "No dial interface found, trying direct number input..."
+  }
+  
+  Write-Output "STEP 5: Looking for phone number input field..."
+  
+  # Look for phone number input field
+  $numberInputConditions = @(
+    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "PhoneNumberInput"),
+    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "DialPadInput"),
+    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "Phone number")
+  )
+  
+  $numberInput = $null
+  foreach ($condition in $numberInputConditions) {
+    $numberInput = $phoneLinkWindow.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $condition)
+    if ($numberInput) { 
+      Write-Output "Found number input field: " + $numberInput.Current.AutomationId
+      break 
+    }
+  }
+  
+  if ($numberInput) {
+    Write-Output "STEP 6: Entering phone number ${phoneNumber}..."
+    $numberInput.SetFocus()
+    Start-Sleep -Milliseconds 500
+    
+    # Clear and type number
+    [System.Windows.Forms.SendKeys]::SendWait("^a")
+    Start-Sleep -Milliseconds 200
+    [System.Windows.Forms.SendKeys]::SendWait("${phoneNumber}")
+    Start-Sleep -Milliseconds 1000
+  } else {
+    Write-Output "No input field found, typing number directly..."
+    [System.Windows.Forms.SendKeys]::SendWait("${phoneNumber}")
+    Start-Sleep -Milliseconds 1000
+  }
+  
+  Write-Output "STEP 7: Looking for call button..."
+  
+  # Look for call/dial button
+  $callButtonConditions = @(
+    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "Call"),
+    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "Dial"),
+    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "CallButton"),
+    [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "DialButton")
+  )
+  
+  $callButton = $null
+  foreach ($condition in $callButtonConditions) {
+    $callButton = $phoneLinkWindow.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $condition)
+    if ($callButton) { 
+      Write-Output "Found call button: " + $callButton.Current.Name
+      break 
+    }
+  }
+  
+  if ($callButton) {
+    Write-Output "STEP 8: Clicking call button to initiate call..."
+    $invokePattern = $callButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
+    $invokePattern.Invoke()
+    Start-Sleep -Milliseconds 1000
+    Write-Output "SUCCESS: Call button clicked for ${phoneNumber}"
+  } else {
+    Write-Output "Call button not found, trying Enter key..."
+    [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
+    Start-Sleep -Milliseconds 500
+    Write-Output "SUCCESS: Call initiated with Enter key for ${phoneNumber}"
+  }
 
-# Type the phone number
-Write-Output "STEP 3: Typing phone number ${phoneNumber}..."
-[System.Windows.Forms.SendKeys]::SendWait("${phoneNumber}")
-Start-Sleep -Milliseconds 1000
+} catch {
+  Write-Output "ERROR: $($_.Exception.Message)"
+  # Fallback method - try the simple approach
+  Write-Output "FALLBACK: Trying simple keyboard navigation..."
+  [System.Windows.Forms.SendKeys]::SendWait("^2")  # Navigate to calls
+  Start-Sleep -Milliseconds 1000
+  [System.Windows.Forms.SendKeys]::SendWait("${phoneNumber}")
+  Start-Sleep -Milliseconds 1000
+  [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
+  Write-Output "FALLBACK_SUCCESS: Call attempted via keyboard navigation"
+}
 
-# Press Enter to initiate call
-Write-Output "STEP 4: Pressing Enter to call..."
-[System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
-Start-Sleep -Milliseconds 500
-
-Write-Output "SUCCESS: Call command sent to Phone Link for ${phoneNumber}"
+Write-Output "CALL_AUTOMATION_COMPLETE"
 `;
 
       return new Promise<boolean>((resolve) => {

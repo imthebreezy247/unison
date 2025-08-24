@@ -466,6 +466,32 @@ try {
     });
   }
 
+  public async makeCall(phoneNumber: string): Promise<boolean> {
+    log.info(`📞 MAKING CALL via Phone Link to ${phoneNumber}`);
+    
+    if (!this.isRunning) {
+      log.error('Phone Link is not running');
+      return false;
+    }
+
+    try {
+      // Use the enhanced UI automation for phone calls
+      const success = await this.uiAutomation.makeCallThroughPhoneLink(phoneNumber);
+      
+      if (success) {
+        log.info('✅ Phone call initiated successfully via Phone Link!');
+        return true;
+      } else {
+        log.error('❌ Phone call automation failed');
+        return false;
+      }
+      
+    } catch (error) {
+      log.error('Failed to make call via Phone Link:', error);
+      return false;
+    }
+  }
+
   public getQueuedMessages(): any[] {
     return [...this.messageQueue];
   }

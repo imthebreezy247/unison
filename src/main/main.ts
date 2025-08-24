@@ -46,7 +46,7 @@ class UnisonXApp {
     this.contactImportExportService = new ContactImportExportService(this.databaseManager);
     this.messageSyncService = new MessageSyncService(this.databaseManager, this.phoneLinkBridge);
     this.crmIntegrationService = new CRMIntegrationService(this.databaseManager, new (require('./services/WindowsUIAutomation').WindowsUIAutomation)());
-    this.callLogService = new CallLogService(this.databaseManager);
+    this.callLogService = new CallLogService(this.databaseManager, this.phoneLinkBridge);
     this.fileManagerService = new FileManagerService(this.databaseManager);
     this.settingsService = new SettingsService(this.databaseManager);
     

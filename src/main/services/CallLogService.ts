@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { app, dialog } from 'electron';
 import { DatabaseManager, CallLog, CallRecording, CallParticipant } from '../database/DatabaseManager';
+import { PhoneLinkBridge } from './PhoneLinkBridge';
 
 export interface CallSyncResult {
   success: boolean;
@@ -39,10 +40,12 @@ export interface ActiveCall {
 
 export class CallLogService {
   private databaseManager: DatabaseManager;
+  private phoneLinkBridge?: PhoneLinkBridge;
   private activeCalls: Map<string, ActiveCall> = new Map();
 
-  constructor(databaseManager: DatabaseManager) {
+  constructor(databaseManager: DatabaseManager, phoneLinkBridge?: PhoneLinkBridge) {
     this.databaseManager = databaseManager;
+    this.phoneLinkBridge = phoneLinkBridge;
   }
 
   async initialize(): Promise<void> {
@@ -258,27 +261,49 @@ export class CallLogService {
     ]);
 
     // Actually initiate call via Phone Link automation
-    log.info(`Call initiated: ${callId} to ${phoneNumber} (${callType})`);
+    log.info(`📞 INITIATING CALL: ${callId} to ${phoneNumber} (${callType})`);
     
-    // Import the WindowsUIAutomation class
-    const { WindowsUIAutomation } = await import('./WindowsUIAutomation');
-    const uiAutomation = new WindowsUIAutomation();
-    
-    // Attempt to make the call through Phone Link
+    // Use the PhoneLinkBridge for the actual call
     try {
-      const callSuccess = await uiAutomation.makeCallThroughPhoneLink(phoneNumber);
-      if (callSuccess) {
-        log.info(`✅ Phone Link call automation successful for ${phoneNumber}`);
-        // Update to ringing status
-        setTimeout(() => {
-          this.updateCallStatus(callId, 'ringing');
-        }, 1000);
+      if (this.phoneLinkBridge) {
+        log.info(`🔗 Using PhoneLinkBridge to make call to ${phoneNumber}`);
+        const callSuccess = await this.phoneLinkBridge.makeCall(phoneNumber);
+        
+        if (callSuccess) {
+          log.info(`✅ Phone Link call automation successful for ${phoneNumber}`);
+          // Update to connecting status
+          setTimeout(async () => {
+            await this.updateCallStatus(callId, 'connecting');
+            // After a few seconds, mark as ringing
+            setTimeout(async () => {
+              await this.updateCallStatus(callId, 'ringing');
+            }, 2000);
+          }, 1000);
+        } else {
+          log.error(`❌ Phone Link call automation failed for ${phoneNumber}`);
+          // Update to failed status
+          setTimeout(async () => {
+            await this.updateCallStatusToDatabaseOnly(callId, 'failed');
+          }, 1000);
+        }
       } else {
-        log.error(`❌ Phone Link call automation failed for ${phoneNumber}`);
-        // Update to failed status
-        setTimeout(async () => {
-          await this.updateCallStatusToDatabaseOnly(callId, 'failed');
-        }, 1000);
+        log.error('❌ PhoneLinkBridge not available for call automation');
+        // Fallback to direct UI automation
+        const { WindowsUIAutomation } = await import('./WindowsUIAutomation');
+        const uiAutomation = new WindowsUIAutomation();
+        
+        const callSuccess = await uiAutomation.makeCallThroughPhoneLink(phoneNumber);
+        if (callSuccess) {
+          log.info(`✅ Direct UI automation call successful for ${phoneNumber}`);
+          setTimeout(async () => {
+            await this.updateCallStatus(callId, 'ringing');
+          }, 1000);
+        } else {
+          log.error(`❌ Direct UI automation call failed for ${phoneNumber}`);
+          setTimeout(async () => {
+            await this.updateCallStatusToDatabaseOnly(callId, 'failed');
+          }, 1000);
+        }
       }
     } catch (error) {
       log.error(`❌ Phone Link call automation error for ${phoneNumber}:`, error);
