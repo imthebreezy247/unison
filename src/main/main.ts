@@ -112,6 +112,9 @@ class UnisonXApp {
     this.mainWindow.once('ready-to-show', () => {
       this.mainWindow?.show();
       log.info('UnisonX main window shown');
+      
+      // Set main window reference in services that need it
+      this.messageSyncService.setMainWindow(this.mainWindow);
     });
 
     // Handle external links

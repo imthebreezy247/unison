@@ -276,13 +276,84 @@ try {
   }
 
   private async checkForNewMessages(): Promise<void> {
-    // Alternative method: Check Phone Link's local storage or registry
-    // This is a fallback if notification monitoring doesn't work
     try {
-      // Could check:
-      // %LOCALAPPDATA%\Packages\Microsoft.YourPhone_8wekyb3d8bbwe\LocalState
-      // Registry entries
-      // Or use Windows APIs to query Phone Link's state
+      // Enhanced method: Use UI Automation to detect new messages in Phone Link
+      const psScript = `
+Add-Type -AssemblyName UIAutomationClient
+Add-Type -AssemblyName UIAutomationTypes
+
+try {
+  $phoneProcess = Get-Process -Name "PhoneExperienceHost" -ErrorAction SilentlyContinue
+  
+  if ($phoneProcess -and $phoneProcess.MainWindowHandle -ne [System.IntPtr]::Zero) {
+    $phoneLinkWindow = [System.Windows.Automation.AutomationElement]::FromHandle($phoneProcess.MainWindowHandle)
+    
+    if ($phoneLinkWindow) {
+      # Look for unread message indicators or new conversation items
+      $listCondition = [System.Windows.Automation.PropertyCondition]::new(
+        [System.Windows.Automation.AutomationElement]::ControlTypeProperty, 
+        [System.Windows.Automation.ControlType]::ListItem
+      )
+      $listItems = $phoneLinkWindow.FindAll([System.Windows.Automation.TreeScope]::Descendants, $listCondition)
+      
+      foreach ($item in $listItems | Select-Object -First 10) {
+        $itemText = $item.Current.Name
+        if ($itemText -and $itemText.Contains("Conversation with") -and $itemText.Contains("Unread messages")) {
+          # Parse conversation info
+          if ($itemText -match "Conversation with (.+?)\\..*Message preview\\. (.+?)\\s*$") {
+            $contact = $matches[1].Trim()
+            $messagePreview = $matches[2].Trim()
+            
+            # Only report if message preview is substantial
+            if ($messagePreview.Length -gt 5 -and -not $messagePreview.Contains("Attachment:")) {
+              Write-Output "NEW_MESSAGE|$contact|$messagePreview|$(Get-Date -Format 'yyyy-MM-ddTHH:mm:ss')"
+            }
+          }
+        }
+      }
+    }
+  }
+} catch {
+  # Silent error handling for monitoring
+}
+`;
+
+      const psProcess = spawn('powershell.exe', [
+        '-NoProfile',
+        '-ExecutionPolicy', 'Bypass',
+        '-Command', psScript
+      ], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        windowsHide: true
+      });
+
+      psProcess.stdout?.on('data', (data: Buffer) => {
+        const output = data.toString().trim();
+        
+        if (output.startsWith('NEW_MESSAGE|')) {
+          const [, contact, messageContent, timestamp] = output.split('|');
+          
+          if (contact && messageContent) {
+            // Create message data object
+            const messageData: PhoneLinkMessage = {
+              from: contact,
+              content: messageContent,
+              timestamp: new Date(timestamp || Date.now()),
+              source: 'phone_link',
+              messageType: 'sms'
+            };
+            
+            log.info('📨 New message detected from Phone Link UI:', messageData);
+            this.emit('message-received', messageData);
+          }
+        }
+      });
+
+      // Don't wait for the process to complete, just let it run
+      setTimeout(() => {
+        psProcess.kill();
+      }, 3000);
+      
     } catch (error) {
       log.debug('Error checking for new messages:', error);
     }

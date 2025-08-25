@@ -38,10 +38,15 @@ export interface ParsedMessage {
 export class MessageSyncService {
   private databaseManager: DatabaseManager;
   private phoneLinkBridge: PhoneLinkBridge;
+  private mainWindow: any; // Will be set by main process
 
   constructor(databaseManager: DatabaseManager, phoneLinkBridge: PhoneLinkBridge) {
     this.databaseManager = databaseManager;
     this.phoneLinkBridge = phoneLinkBridge;
+  }
+
+  setMainWindow(mainWindow: any): void {
+    this.mainWindow = mainWindow;
   }
 
   async initialize(): Promise<void> {
@@ -80,6 +85,19 @@ export class MessageSyncService {
 
   private async handleIncomingPhoneLinkMessage(messageData: PhoneLinkMessage): Promise<void> {
     try {
+      // Check for duplicate messages (same content from same sender within last 10 seconds)
+      const tenSecondsAgo = new Date(Date.now() - 10000).toISOString();
+      const duplicateCheck = await this.databaseManager.query(`
+        SELECT id FROM messages 
+        WHERE phone_number = ? AND content = ? AND timestamp > ? 
+        LIMIT 1
+      `, [messageData.from, messageData.content, tenSecondsAgo]);
+      
+      if (duplicateCheck.length > 0) {
+        log.debug(`Skipping duplicate message from ${messageData.from}: "${messageData.content}"`);
+        return;
+      }
+      
       // Find or create thread for this phone number/contact
       let threadId = await this.findThreadByPhoneNumber(messageData.from);
       
@@ -120,8 +138,22 @@ export class MessageSyncService {
       
       log.info(`✅ Saved incoming message from ${messageData.from} to thread ${threadId}`);
       
-      // TODO: Emit event to update UI in real-time
-      // this.emit('new-message', { threadId, messageId, messageData });
+      // Emit event to update UI in real-time via main process
+      if (this.mainWindow) {
+        this.mainWindow.webContents.send('new-message-received', {
+          threadId,
+          messageId,
+          message: {
+            id: messageId,
+            thread_id: threadId,
+            phone_number: messageData.from,
+            content: messageData.content,
+            direction: 'incoming',
+            timestamp: messageData.timestamp.toISOString(),
+            read_status: 0
+          }
+        });
+      }
       
     } catch (error) {
       log.error('Error saving incoming Phone Link message:', error);
@@ -130,16 +162,49 @@ export class MessageSyncService {
 
   private async findThreadByPhoneNumber(phoneNumber: string): Promise<string | null> {
     try {
-      const result = await this.databaseManager.query(
+      // Clean and normalize phone number for comparison
+      const normalizedNumber = this.normalizePhoneNumber(phoneNumber);
+      
+      // Try exact match first
+      let result = await this.databaseManager.query(
         'SELECT id FROM message_threads WHERE phone_number = ? LIMIT 1',
         [phoneNumber]
       );
+      
+      // If no exact match, try normalized match
+      if (result.length === 0 && normalizedNumber !== phoneNumber) {
+        result = await this.databaseManager.query(
+          'SELECT id FROM message_threads WHERE phone_number = ? LIMIT 1',
+          [normalizedNumber]
+        );
+      }
+      
+      // If still no match, try partial matches (for cases where contact names change to phone numbers)
+      if (result.length === 0 && normalizedNumber.length >= 10) {
+        const numberPart = normalizedNumber.slice(-10); // Last 10 digits
+        result = await this.databaseManager.query(
+          'SELECT id FROM message_threads WHERE phone_number LIKE ? LIMIT 1',
+          [`%${numberPart}`]
+        );
+      }
       
       return result.length > 0 ? result[0].id : null;
     } catch (error) {
       log.error('Error finding thread by phone number:', error);
       return null;
     }
+  }
+  
+  private normalizePhoneNumber(phoneNumber: string): string {
+    // Remove all non-digit characters
+    const digitsOnly = phoneNumber.replace(/\D/g, '');
+    
+    // If it's a US number starting with 1, remove the 1
+    if (digitsOnly.length === 11 && digitsOnly.startsWith('1')) {
+      return digitsOnly.slice(1);
+    }
+    
+    return digitsOnly;
   }
 
   private async createThreadForPhoneNumber(phoneNumber: string): Promise<string> {
