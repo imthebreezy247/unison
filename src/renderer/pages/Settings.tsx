@@ -42,6 +42,121 @@ interface Backup {
   created_at: string;
 }
 
+// CRM Integration Form Component
+const CRMIntegrationForm: React.FC = () => {
+  const [apiKey, setApiKey] = useState('');
+  const [apiEndpoint, setApiEndpoint] = useState('');
+  const [enabled, setEnabled] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState('');
+
+  useEffect(() => {
+    loadCRMConfig();
+  }, []);
+
+  const loadCRMConfig = async () => {
+    try {
+      const config = await window.unisonx?.crm?.getConfig();
+      if (config) {
+        setApiKey(config.apiKey || '');
+        setApiEndpoint(config.apiEndpoint || '');
+        setEnabled(config.enabled || false);
+      }
+    } catch (error) {
+      console.error('Failed to load CRM config:', error);
+    }
+  };
+
+  const saveCRMConfig = async () => {
+    setLoading(true);
+    try {
+      await window.unisonx?.crm?.updateConfig({
+        apiKey,
+        apiEndpoint,
+        enabled,
+        autoSyncContacts: true,
+        autoSyncMessages: true,
+        campaignEnabled: false
+      });
+      setStatus('CRM configuration saved successfully!');
+      setTimeout(() => setStatus(''), 3000);
+    } catch (error) {
+      console.error('Failed to save CRM config:', error);
+      setStatus('Failed to save CRM configuration');
+      setTimeout(() => setStatus(''), 3000);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            API Key
+          </label>
+          <input
+            type="text"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder="Enter your CRM API key (e.g., ick_c4a513ea...)"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+          />
+        </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            API Endpoint
+          </label>
+          <input
+            type="text"
+            value={apiEndpoint}
+            onChange={(e) => setApiEndpoint(e.target.value)}
+            placeholder="https://api.yourcrm.com"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+          />
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Enable CRM Integration
+            </label>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Automatically sync contacts and messages with your CRM
+            </p>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input 
+              type="checkbox" 
+              className="sr-only peer" 
+              checked={enabled}
+              onChange={(e) => setEnabled(e.target.checked)}
+            />
+            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+          </label>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-4">
+        <button
+          onClick={saveCRMConfig}
+          disabled={loading || !apiKey}
+          className="btn-primary disabled:opacity-50"
+        >
+          {loading ? 'Saving...' : 'Save Configuration'}
+        </button>
+        
+        {status && (
+          <span className={`text-sm ${status.includes('success') ? 'text-green-600' : 'text-red-600'}`}>
+            {status}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+};
+
 export const Settings: React.FC = () => {
   const { theme } = useTheme();
   const [activeTab, setActiveTab] = useState('appearance');
@@ -253,6 +368,27 @@ export const Settings: React.FC = () => {
       setSaveStatus('Failed to restore backup');
     }
     setTimeout(() => setSaveStatus(''), 3000);
+  };
+
+  const cleanupDatabase = async () => {
+    try {
+      setLoading(true);
+      setSaveStatus('Cleaning up duplicate phone numbers...');
+      
+      const result = await window.unisonx?.database?.cleanupDuplicates();
+      
+      if (result?.success) {
+        setSaveStatus(`Cleanup successful! Removed ${result.statsBefore?.duplicatePhoneNumbers || 0} duplicate numbers`);
+      } else {
+        setSaveStatus('Database cleanup completed');
+      }
+    } catch (error) {
+      console.error('Failed to cleanup database:', error);
+      setSaveStatus('Failed to cleanup database');
+    } finally {
+      setLoading(false);
+      setTimeout(() => setSaveStatus(''), 5000);
+    }
   };
 
   const tabs = [
@@ -513,57 +649,54 @@ export const Settings: React.FC = () => {
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
                     <ExternalLink size={20} />
-                    CRM Integrations
+                    CRM Integration
                   </h2>
-                  <button className="btn-primary flex items-center gap-2">
-                    <Plus size={16} />
-                    Add Integration
-                  </button>
                 </div>
                 
-                {crmIntegrations.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                    <ExternalLink size={48} className="mx-auto mb-4 opacity-50" />
-                    <p>No CRM integrations configured</p>
-                    <p className="text-sm">Add an integration to sync your contacts and conversations</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {crmIntegrations.map((integration) => (
-                      <div key={integration.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="font-medium text-gray-900 dark:text-gray-100">
-                              {integration.integration_name}
-                            </div>
-                            <div className="text-sm text-gray-600 dark:text-gray-400">
-                              {integration.crm_provider} • {integration.api_endpoint}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className={`px-2 py-1 rounded-full text-xs ${
-                              integration.sync_enabled 
-                                ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300'
-                                : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
-                            }`}>
-                              {integration.sync_enabled ? 'Active' : 'Inactive'}
-                            </span>
-                            <button className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100">
-                              <Edit size={16} />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <CRMIntegrationForm />
               </div>
+            </div>
+          )}
+
+          {/* Shortcuts */}
+          {activeTab === 'shortcuts' && (
+            <div className="card p-6">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+                <Keyboard size={20} />
+                Keyboard Shortcuts
+              </h2>
+              <p className="text-gray-600 dark:text-gray-400">Feature coming soon...</p>
             </div>
           )}
 
           {/* Backup & Restore */}
           {activeTab === 'backup' && (
             <div className="space-y-6">
+              <div className="card p-6">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+                  <Database size={20} />
+                  Database Cleanup
+                </h2>
+                <div className="mb-6">
+                  <p className="text-gray-600 dark:text-gray-400 mb-4">
+                    Clean up duplicate phone numbers (like multiple 941-518-0701 entries) and consolidate them into single conversations.
+                  </p>
+                  <button 
+                    onClick={cleanupDatabase}
+                    className="btn-primary flex items-center gap-2"
+                    disabled={loading}
+                  >
+                    <Trash2 size={16} />
+                    {loading ? 'Cleaning...' : 'Cleanup Duplicate Numbers'}
+                  </button>
+                  {saveStatus && (
+                    <p className="mt-2 text-sm text-green-600 dark:text-green-400">
+                      {saveStatus}
+                    </p>
+                  )}
+                </div>
+              </div>
+              
               <div className="card p-6">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
                   <Database size={20} />

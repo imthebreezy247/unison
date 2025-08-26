@@ -14,6 +14,7 @@ import { CallLogService } from './services/CallLogService';
 import { FileManagerService } from './services/FileManagerService';
 import { SettingsService } from './services/SettingsService';
 import { PhoneLinkBridge } from './services/PhoneLinkBridge';
+import { DatabaseCleanup } from './services/DatabaseCleanup';
 
 // Configure logging
 log.transports.file.level = 'info';
@@ -1032,6 +1033,44 @@ class UnisonXApp {
         return await this.settingsService.getBackups();
       } catch (error) {
         log.error('Get backups error:', error);
+        throw error;
+      }
+    });
+
+    // Database cleanup operations
+    ipcMain.handle('database:cleanup-duplicates', async () => {
+      try {
+        const cleanup = new DatabaseCleanup(this.databaseManager);
+        
+        // Get stats before cleanup
+        const statsBefore = await cleanup.getDatabaseStats();
+        log.info('Database stats before cleanup:', statsBefore);
+        
+        // Run cleanup
+        await cleanup.cleanupDuplicatePhoneNumbers();
+        
+        // Get stats after cleanup
+        const statsAfter = await cleanup.getDatabaseStats();
+        log.info('Database stats after cleanup:', statsAfter);
+        
+        return {
+          success: true,
+          statsBefore,
+          statsAfter,
+          message: 'Database cleanup completed successfully'
+        };
+      } catch (error) {
+        log.error('Database cleanup error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('database:get-stats', async () => {
+      try {
+        const cleanup = new DatabaseCleanup(this.databaseManager);
+        return await cleanup.getDatabaseStats();
+      } catch (error) {
+        log.error('Get database stats error:', error);
         throw error;
       }
     });

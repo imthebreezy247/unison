@@ -125,6 +125,12 @@ interface UnisonXAPI {
     getAll: () => Promise<any[]>;
   };
 
+  // Database operations
+  database: {
+    cleanupDuplicates: () => Promise<any>;
+    getStats: () => Promise<any>;
+  };
+
   // System operations
   system: {
     minimize: () => void;
@@ -270,6 +276,12 @@ const api: UnisonXAPI = {
     create: (backupType: string, options?: any) => ipcRenderer.invoke('backup:create', backupType, options),
     restore: (backupId: string) => ipcRenderer.invoke('backup:restore', backupId),
     getAll: () => ipcRenderer.invoke('backup:get-all'),
+  },
+
+  // Database operations
+  database: {
+    cleanupDuplicates: () => ipcRenderer.invoke('database:cleanup-duplicates'),
+    getStats: () => ipcRenderer.invoke('database:get-stats'),
   },
 
   // System operations
