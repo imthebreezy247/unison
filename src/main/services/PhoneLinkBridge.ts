@@ -24,6 +24,7 @@ export class PhoneLinkBridge extends EventEmitter {
   private monitorProcess: any = null;
   private isMonitoring = false;
   private uiAutomation: WindowsUIAutomation;
+  private seenMessages: Set<string> = new Set(); // Track seen messages to prevent duplicates
   private accessibility: PhoneLinkAccessibility;
   private notificationMonitor: PhoneLinkNotificationMonitor;
   private apiInterceptor: PhoneLinkAPIInterceptor;
@@ -334,6 +335,21 @@ try {
           const [, contact, messageContent, timestamp] = output.split('|');
           
           if (contact && messageContent) {
+            // Create unique message identifier to prevent duplicates
+            const messageKey = `${contact}:${messageContent}:${Math.floor(Date.now() / 30000)}`; // 30 second window
+            
+            if (this.seenMessages.has(messageKey)) {
+              log.debug(`Skipping duplicate message from ${contact}: "${messageContent}"`);
+              return;
+            }
+            
+            // Add to seen messages and clean old entries
+            this.seenMessages.add(messageKey);
+            if (this.seenMessages.size > 100) {
+              const oldEntries = Array.from(this.seenMessages).slice(0, 50);
+              oldEntries.forEach(key => this.seenMessages.delete(key));
+            }
+            
             // Create message data object
             const messageData: PhoneLinkMessage = {
               from: contact,

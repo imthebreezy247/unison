@@ -1074,6 +1074,53 @@ class UnisonXApp {
         throw error;
       }
     });
+
+    // CRM operations
+    ipcMain.handle('crm:get-config', async () => {
+      try {
+        return await this.crmIntegrationService.getConfig();
+      } catch (error) {
+        log.error('Get CRM config error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('crm:update-config', async (event, config) => {
+      try {
+        await this.crmIntegrationService.updateConfig(config);
+        return { success: true };
+      } catch (error) {
+        log.error('Update CRM config error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('crm:get-integrations', async () => {
+      try {
+        return await this.crmIntegrationService.getIntegrations();
+      } catch (error) {
+        log.error('Get CRM integrations error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('crm:create-integration', async (event, integrationData) => {
+      try {
+        return await this.crmIntegrationService.createIntegration(integrationData);
+      } catch (error) {
+        log.error('Create CRM integration error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('crm:update-integration', async (event, integrationId, updateData) => {
+      try {
+        return await this.crmIntegrationService.updateIntegration(integrationId, updateData);
+      } catch (error) {
+        log.error('Update CRM integration error:', error);
+        throw error;
+      }
+    });
   }
 
   private setupDeviceManagerEvents(): void {

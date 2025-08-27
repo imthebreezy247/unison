@@ -111,18 +111,20 @@ interface UnisonXAPI {
     createCustom: (themeData: any) => Promise<string>;
   };
 
-  // CRM operations
-  crm: {
-    getIntegrations: () => Promise<any[]>;
-    createIntegration: (integrationData: any) => Promise<string>;
-    updateIntegration: (integrationId: string, updateData: any) => Promise<void>;
-  };
-
   // Backup operations
   backup: {
     create: (backupType: string, options?: any) => Promise<any>;
     restore: (backupId: string) => Promise<any>;
     getAll: () => Promise<any[]>;
+  };
+
+  // CRM operations
+  crm: {
+    getConfig: () => Promise<any>;
+    updateConfig: (config: any) => Promise<any>;
+    getIntegrations: () => Promise<any[]>;
+    createIntegration: (integrationData: any) => Promise<any>;
+    updateIntegration: (integrationId: string, updateData: any) => Promise<any>;
   };
 
   // Database operations
@@ -266,16 +268,19 @@ const api: UnisonXAPI = {
     createCustom: (themeData: any) => ipcRenderer.invoke('themes:create-custom', themeData),
   },
 
-  crm: {
-    getIntegrations: () => ipcRenderer.invoke('crm:get-integrations'),
-    createIntegration: (integrationData: any) => ipcRenderer.invoke('crm:create-integration', integrationData),
-    updateIntegration: (integrationId: string, updateData: any) => ipcRenderer.invoke('crm:update-integration', integrationId, updateData),
-  },
-
   backup: {
     create: (backupType: string, options?: any) => ipcRenderer.invoke('backup:create', backupType, options),
     restore: (backupId: string) => ipcRenderer.invoke('backup:restore', backupId),
     getAll: () => ipcRenderer.invoke('backup:get-all'),
+  },
+
+  // CRM operations
+  crm: {
+    getConfig: () => ipcRenderer.invoke('crm:get-config'),
+    updateConfig: (config: any) => ipcRenderer.invoke('crm:update-config', config),
+    getIntegrations: () => ipcRenderer.invoke('crm:get-integrations'),
+    createIntegration: (integrationData: any) => ipcRenderer.invoke('crm:create-integration', integrationData),
+    updateIntegration: (integrationId: string, updateData: any) => ipcRenderer.invoke('crm:update-integration', integrationId, updateData),
   },
 
   // Database operations

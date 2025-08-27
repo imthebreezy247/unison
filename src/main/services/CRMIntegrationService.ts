@@ -78,6 +78,61 @@ export class CRMIntegrationService extends EventEmitter {
     log.info('✅ CRM Integration Service initialized');
   }
 
+  /**
+   * Get current CRM configuration
+   */
+  async getConfig(): Promise<CRMConfig> {
+    return this.config;
+  }
+
+  /**
+   * Get all CRM integrations
+   */
+  async getIntegrations(): Promise<any[]> {
+    // For now return the current config as a single integration
+    return [{
+      id: 'primary-crm',
+      crm_provider: 'Custom CRM',
+      integration_name: 'Primary CRM Integration',
+      api_endpoint: this.config.apiEndpoint,
+      sync_enabled: this.config.enabled
+    }];
+  }
+
+  /**
+   * Create a new CRM integration
+   */
+  async createIntegration(integrationData: any): Promise<any> {
+    // For now, just update the existing config
+    await this.updateConfig({
+      ...this.config,
+      apiEndpoint: integrationData.api_endpoint,
+      enabled: integrationData.sync_enabled
+    });
+    
+    return {
+      id: 'primary-crm',
+      ...integrationData
+    };
+  }
+
+  /**
+   * Update an existing CRM integration
+   */
+  async updateIntegration(integrationId: string, updateData: any): Promise<any> {
+    // For now, just update the existing config
+    await this.updateConfig({
+      ...this.config,
+      apiEndpoint: updateData.api_endpoint,
+      enabled: updateData.sync_enabled
+    });
+    
+    return {
+      id: integrationId,
+      ...updateData
+    };
+  }
+
   private async setupCRMTables(): Promise<void> {
     try {
       // CRM Configuration table
@@ -429,10 +484,6 @@ export class CRMIntegrationService extends EventEmitter {
     `, [campaignId]);
 
     return stats[0] || { total_messages: 0, sent_count: 0, failed_count: 0, pending_count: 0 };
-  }
-
-  getConfig(): CRMConfig {
-    return { ...this.config };
   }
 
   async cleanup(): Promise<void> {
