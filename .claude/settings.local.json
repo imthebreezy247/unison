@@ -25,7 +25,8 @@
       "Bash(dig:*)",
       "Bash(cmd.exe:*)",
       "Bash(powershell:*)",
-      "Bash(cmd /c:*)"
+      "Bash(cmd /c:*)",
+      "Bash(taskkill:*)"
     ],
     "deny": []
   }

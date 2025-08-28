@@ -56,11 +56,14 @@ class UnisonXApp {
 
   private initializeApp(): void {
     // Handle app ready
-    app.whenReady().then(() => {
+    app.whenReady().then(async () => {
+      // Initialize services FIRST before creating UI
+      await this.initializeServices();
+      
+      // Then create UI components
       this.createMainWindow();
       this.setupIPC();
       this.setupSystemTray();
-      this.initializeServices();
       
       app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
@@ -94,7 +97,8 @@ class UnisonXApp {
         preload: path.join(__dirname, 'preload.js'),
         webSecurity: true
       },
-      titleBarStyle: 'default',
+      titleBarStyle: 'hidden',
+      frame: true,
       icon: path.join(__dirname, '../../assets/icon.png'),
       show: false
     });
@@ -1071,53 +1075,6 @@ class UnisonXApp {
         return await cleanup.getDatabaseStats();
       } catch (error) {
         log.error('Get database stats error:', error);
-        throw error;
-      }
-    });
-
-    // CRM operations
-    ipcMain.handle('crm:get-config', async () => {
-      try {
-        return await this.crmIntegrationService.getConfig();
-      } catch (error) {
-        log.error('Get CRM config error:', error);
-        throw error;
-      }
-    });
-
-    ipcMain.handle('crm:update-config', async (event, config) => {
-      try {
-        await this.crmIntegrationService.updateConfig(config);
-        return { success: true };
-      } catch (error) {
-        log.error('Update CRM config error:', error);
-        throw error;
-      }
-    });
-
-    ipcMain.handle('crm:get-integrations', async () => {
-      try {
-        return await this.crmIntegrationService.getIntegrations();
-      } catch (error) {
-        log.error('Get CRM integrations error:', error);
-        throw error;
-      }
-    });
-
-    ipcMain.handle('crm:create-integration', async (event, integrationData) => {
-      try {
-        return await this.crmIntegrationService.createIntegration(integrationData);
-      } catch (error) {
-        log.error('Create CRM integration error:', error);
-        throw error;
-      }
-    });
-
-    ipcMain.handle('crm:update-integration', async (event, integrationId, updateData) => {
-      try {
-        return await this.crmIntegrationService.updateIntegration(integrationId, updateData);
-      } catch (error) {
-        log.error('Update CRM integration error:', error);
         throw error;
       }
     });
