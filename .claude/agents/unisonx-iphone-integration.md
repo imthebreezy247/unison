@@ -1,7 +1,7 @@
 ---
 name: unisonx-iphone-integration
 description: Use this agent when working on UnisonX development tasks including iPhone-Windows integration, Phone Link reverse engineering, cross-platform messaging, USB/Bluetooth device communication, Windows UI automation, or Electron/React desktop applications. Examples: <example>Context: User is developing UnisonX and needs to add contact sync functionality. user: 'I need to implement contact syncing from iPhone to Windows' assistant: 'I'll use the unisonx-iphone-integration agent to help implement contact syncing using libimobiledevice and iPhone backup parsing' <commentary>Since the user needs iPhone integration expertise for UnisonX, use the unisonx-iphone-integration agent.</commentary></example> <example>Context: User encounters an issue with Phone Link automation in UnisonX. user: 'The Phone Link automation is failing to send messages, can you help debug this?' assistant: 'Let me use the unisonx-iphone-integration agent to analyze the Phone Link automation issue' <commentary>Phone Link debugging requires the specialized UnisonX agent's expertise in Windows UI automation and Phone Link reverse engineering.</commentary></example> <example>Context: User wants to add call logging to UnisonX. user: 'How can I capture and log phone calls from iPhone to the UnisonX database?' assistant: 'I'll engage the unisonx-iphone-integration agent to implement call logging using iPhone device monitoring and SQLite storage' <commentary>Call logging requires iPhone integration and database expertise specific to UnisonX architecture.</commentary></example>
-model: sonnet
+model: opus
 color: green
 ---
 

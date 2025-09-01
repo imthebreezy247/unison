@@ -4,6 +4,8 @@ import * as fs from 'fs';
 import { app, dialog } from 'electron';
 import { DatabaseManager, Message, MessageThread, MessageAttachment } from '../database/DatabaseManager';
 import { PhoneLinkBridge, PhoneLinkMessage } from './PhoneLinkBridge';
+import { SyncCoordinator } from './SyncCoordinator';
+import * as crypto from 'crypto';
 
 export interface MessageSyncResult {
   success: boolean;
@@ -38,11 +40,13 @@ export interface ParsedMessage {
 export class MessageSyncService {
   private databaseManager: DatabaseManager;
   private phoneLinkBridge: PhoneLinkBridge;
+  private syncCoordinator: SyncCoordinator;
   private mainWindow: any; // Will be set by main process
 
-  constructor(databaseManager: DatabaseManager, phoneLinkBridge: PhoneLinkBridge) {
+  constructor(databaseManager: DatabaseManager, phoneLinkBridge: PhoneLinkBridge, syncCoordinator?: SyncCoordinator) {
     this.databaseManager = databaseManager;
     this.phoneLinkBridge = phoneLinkBridge;
+    this.syncCoordinator = syncCoordinator || new SyncCoordinator();
   }
 
   setMainWindow(mainWindow: any): void {
@@ -85,16 +89,16 @@ export class MessageSyncService {
 
   private async handleIncomingPhoneLinkMessage(messageData: PhoneLinkMessage): Promise<void> {
     try {
-      // Check for duplicate messages (same content from same sender within last 10 seconds)
-      const tenSecondsAgo = new Date(Date.now() - 10000).toISOString();
+      // Enhanced duplicate detection using content hash
+      const messageHash = this.createMessageHash(messageData.from, messageData.content);
       const duplicateCheck = await this.databaseManager.query(`
         SELECT id FROM messages 
-        WHERE phone_number = ? AND content = ? AND timestamp > ? 
+        WHERE phone_number = ? AND content = ? 
         LIMIT 1
-      `, [messageData.from, messageData.content, tenSecondsAgo]);
+      `, [messageData.from, messageData.content]);
       
       if (duplicateCheck.length > 0) {
-        log.debug(`Skipping duplicate message from ${messageData.from}: "${messageData.content}"`);
+        log.debug(`🚫 Skipping duplicate message (hash: ${messageHash.substring(0, 8)}) from ${messageData.from}`);
         return;
       }
       
@@ -234,6 +238,18 @@ export class MessageSyncService {
    * Create initial test data for Phone Link messaging
    */
   async syncMessagesFromDevice(deviceId: string, backupPath?: string): Promise<MessageSyncResult> {
+    // Check with sync coordinator first
+    const canSync = await this.syncCoordinator.requestSync('message_sync');
+    if (!canSync) {
+      return {
+        success: false,
+        messagesImported: 0,
+        threadsCreated: 0,
+        attachmentsProcessed: 0,
+        errors: ['Message sync blocked by coordinator - too frequent or already in progress']
+      };
+    }
+
     log.info(`📱 Creating initial Phone Link test data for device: ${deviceId}`);
     
     const result: MessageSyncResult = {
@@ -282,6 +298,9 @@ export class MessageSyncService {
     } catch (error) {
       result.errors.push(`Message sync failed: ${error}`);
       log.error('Message sync error:', error);
+    } finally {
+      // Always release the sync lock
+      this.syncCoordinator.releaseSync('message_sync');
     }
 
     return result;
@@ -867,6 +886,36 @@ export class MessageSyncService {
       typeStats,
       generatedAt: new Date().toISOString()
     };
+  }
+
+  /**
+   * Create unique hash for message deduplication
+   */
+  private createMessageHash(phoneNumber: string, content: string): string {
+    const normalizedPhone = this.normalizePhoneNumber(phoneNumber);
+    const normalizedContent = content.trim().toLowerCase();
+    return crypto.createHash('md5').update(`${normalizedPhone}:${normalizedContent}`).digest('hex');
+  }
+
+  /**
+   * Emergency duplicate cleanup
+   */
+  async emergencyDuplicateCleanup(): Promise<number> {
+    log.warn('🚨 Starting emergency duplicate cleanup...');
+    
+    const deletedCount = await this.databaseManager.run(`
+      DELETE FROM messages WHERE id IN (
+        SELECT id FROM (
+          SELECT id, ROW_NUMBER() OVER (
+            PARTITION BY phone_number, content 
+            ORDER BY timestamp DESC
+          ) as rn FROM messages
+        ) WHERE rn > 1
+      )
+    `);
+    
+    log.info(`🧹 Emergency cleanup removed ${deletedCount} duplicate messages`);
+    return deletedCount;
   }
 
   cleanup(): void {

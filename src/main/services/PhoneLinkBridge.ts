@@ -214,12 +214,14 @@ try {
   }
 
   private startPolling(): void {
+    // DISABLED: Aggressive polling was causing message duplication
     // Alternative method: Check for Phone Link window changes
-    setInterval(() => {
-      if (this.isRunning) {
-        this.checkForNewMessages();
-      }
-    }, 2000);
+    // setInterval(() => {
+    //   if (this.isRunning) {
+    //     this.checkForNewMessages();
+    //   }
+    // }, 2000);
+    log.info('🛑 Phone Link polling DISABLED to prevent message duplication');
   }
 
   private processIncomingMessage(rawContent: string): void {

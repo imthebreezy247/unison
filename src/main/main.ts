@@ -15,6 +15,7 @@ import { FileManagerService } from './services/FileManagerService';
 import { SettingsService } from './services/SettingsService';
 import { PhoneLinkBridge } from './services/PhoneLinkBridge';
 import { DatabaseCleanup } from './services/DatabaseCleanup';
+import { SyncCoordinator } from './services/SyncCoordinator';
 
 // Configure logging
 log.transports.file.level = 'info';
@@ -25,6 +26,7 @@ class UnisonXApp {
   private tray: Tray | null = null;
   private databaseManager: DatabaseManager;
   private phoneLinkBridge: PhoneLinkBridge;
+  private syncCoordinator: SyncCoordinator;
   private deviceManager: DeviceManager;
   private notificationManager: NotificationManager;
   private contactSyncService: ContactSyncService;
@@ -38,6 +40,9 @@ class UnisonXApp {
   constructor() {
     this.databaseManager = new DatabaseManager();
     
+    // Create centralized sync coordinator to prevent duplication
+    this.syncCoordinator = new SyncCoordinator();
+    
     // Create ONE Phone Link Bridge instance to share across all services
     this.phoneLinkBridge = new PhoneLinkBridge();
     
@@ -45,7 +50,7 @@ class UnisonXApp {
     this.notificationManager = new NotificationManager();
     this.contactSyncService = new ContactSyncService(this.databaseManager);
     this.contactImportExportService = new ContactImportExportService(this.databaseManager);
-    this.messageSyncService = new MessageSyncService(this.databaseManager, this.phoneLinkBridge);
+    this.messageSyncService = new MessageSyncService(this.databaseManager, this.phoneLinkBridge, this.syncCoordinator);
     this.crmIntegrationService = new CRMIntegrationService(this.databaseManager, new (require('./services/WindowsUIAutomation').WindowsUIAutomation)());
     this.callLogService = new CallLogService(this.databaseManager, this.phoneLinkBridge);
     this.fileManagerService = new FileManagerService(this.databaseManager);
@@ -91,13 +96,14 @@ class UnisonXApp {
       height: 900,
       minWidth: 1200,
       minHeight: 700,
+      title: 'UnisonX - iPhone Integration',
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
         preload: path.join(__dirname, 'preload.js'),
         webSecurity: true
       },
-      titleBarStyle: 'hidden',
+      // REMOVED: titleBarStyle: 'hidden' - Using native Windows title bar instead
       frame: true,
       icon: path.join(__dirname, '../../assets/icon.png'),
       show: false
@@ -1066,6 +1072,26 @@ class UnisonXApp {
       } catch (error) {
         log.error('Database cleanup error:', error);
         throw error;
+      }
+    });
+
+    // Emergency message duplicate cleanup
+    ipcMain.handle('database:emergency-message-cleanup', async () => {
+      try {
+        log.warn('🚨 Starting emergency message cleanup...');
+        const deletedCount = await this.messageSyncService.emergencyDuplicateCleanup();
+        
+        return {
+          success: true,
+          deletedCount,
+          message: `Emergency cleanup removed ${deletedCount} duplicate messages`
+        };
+      } catch (error) {
+        log.error('Emergency message cleanup failed:', error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        };
       }
     });
 

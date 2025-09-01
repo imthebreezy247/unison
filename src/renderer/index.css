@@ -27,13 +27,7 @@
     @apply select-text;
   }
   
-  .title-bar {
-    -webkit-app-region: drag;
-  }
-  
-  .title-bar button {
-    -webkit-app-region: no-drag;
-  }
+  /* REMOVED: Title bar CSS - using native Windows title bar instead */
   
   .sidebar-item {
     @apply flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors duration-200;

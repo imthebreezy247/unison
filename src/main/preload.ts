@@ -286,6 +286,7 @@ const api: UnisonXAPI = {
   // Database operations
   database: {
     cleanupDuplicates: () => ipcRenderer.invoke('database:cleanup-duplicates'),
+    emergencyMessageCleanup: () => ipcRenderer.invoke('database:emergency-message-cleanup'),
     getStats: () => ipcRenderer.invoke('database:get-stats'),
   },
 

@@ -105,7 +105,7 @@ export class DeviceManager extends EventEmitter {
     
     this.scanInterval = setInterval(() => {
       this.scanForDevices();
-    }, 10000); // Check every 10 seconds
+    }, 60000); // REDUCED: Check every 60 seconds (was 10s) to prevent excessive scanning
   }
 
   stopScanning(): void {

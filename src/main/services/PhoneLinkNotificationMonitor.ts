@@ -134,10 +134,12 @@ while ($true) {
   private startDatabasePolling(): void {
     if (!this.notificationDb) return;
     
+    // DISABLED: Aggressive polling was causing message duplication 
     // Poll every 2 seconds
-    this.checkInterval = setInterval(() => {
-      this.checkNewNotifications();
-    }, 2000);
+    // this.checkInterval = setInterval(() => {
+    //   this.checkNewNotifications();
+    // }, 2000);
+    log.info('🛑 Phone Link notification polling DISABLED to prevent message duplication');
   }
 
   private checkNewNotifications(): void {
