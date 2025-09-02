@@ -208,10 +208,10 @@ export class DatabaseCleanup {
     const callLogCount = await this.databaseManager.query('SELECT COUNT(*) as count FROM call_logs');
     stats.callLogs = callLogCount[0].count;
 
-    // Count potential duplicates (same last 10 digits)
+    // Count potential duplicates (same last 10 digits) - Using SQLite SUBSTR instead of RIGHT
     const duplicates = await this.databaseManager.query(`
       SELECT COUNT(*) as count FROM (
-        SELECT RIGHT(REPLACE(phone_number, '-', ''), 10) as normalized, COUNT(*) as thread_count
+        SELECT SUBSTR(REPLACE(phone_number, '-', ''), -10) as normalized, COUNT(*) as thread_count
         FROM message_threads 
         GROUP BY normalized 
         HAVING thread_count > 1

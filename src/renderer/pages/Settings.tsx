@@ -391,6 +391,27 @@ export const Settings: React.FC = () => {
     }
   };
 
+  const emergencyMessageCleanup = async () => {
+    try {
+      setLoading(true);
+      setSaveStatus('🚨 Starting emergency message cleanup...');
+      
+      const result = await window.unisonx?.database?.emergencyMessageCleanup();
+      
+      if (result?.success) {
+        setSaveStatus(`🧹 Emergency cleanup complete! Removed ${result.deletedCount} duplicate messages`);
+      } else {
+        setSaveStatus('Emergency cleanup failed: ' + result?.error);
+      }
+    } catch (error) {
+      console.error('Failed to run emergency cleanup:', error);
+      setSaveStatus('Emergency cleanup failed');
+    } finally {
+      setLoading(false);
+      setTimeout(() => setSaveStatus(''), 5000);
+    }
+  };
+
   const tabs = [
     { id: 'appearance', label: 'Appearance', icon: Palette },
     { id: 'sync', label: 'Synchronization', icon: RefreshCw },
@@ -679,16 +700,31 @@ export const Settings: React.FC = () => {
                 </h2>
                 <div className="mb-6">
                   <p className="text-gray-600 dark:text-gray-400 mb-4">
-                    Clean up duplicate phone numbers (like multiple 941-518-0701 entries) and consolidate them into single conversations.
+                    Clean up duplicate entries and fix the 18K+ message duplication issue.
                   </p>
-                  <button 
-                    onClick={cleanupDatabase}
-                    className="btn-primary flex items-center gap-2"
-                    disabled={loading}
-                  >
-                    <Trash2 size={16} />
-                    {loading ? 'Cleaning...' : 'Cleanup Duplicate Numbers'}
-                  </button>
+                  <div className="flex gap-3 mb-4">
+                    <button 
+                      onClick={cleanupDatabase}
+                      className="btn-secondary flex items-center gap-2"
+                      disabled={loading}
+                    >
+                      <Trash2 size={16} />
+                      {loading ? 'Cleaning...' : 'Cleanup Duplicate Numbers'}
+                    </button>
+                    <button 
+                      onClick={emergencyMessageCleanup}
+                      className="btn-danger flex items-center gap-2"
+                      disabled={loading}
+                    >
+                      🚨
+                      {loading ? 'Processing...' : 'Emergency Message Cleanup'}
+                    </button>
+                  </div>
+                  <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 mb-4">
+                    <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                      <strong>Use Emergency Cleanup if you have 18K+ duplicate messages.</strong> This will remove all duplicate messages, keeping only the oldest copy of each unique message.
+                    </p>
+                  </div>
                   {saveStatus && (
                     <p className="mt-2 text-sm text-green-600 dark:text-green-400">
                       {saveStatus}

@@ -898,24 +898,35 @@ export class MessageSyncService {
   }
 
   /**
-   * Emergency duplicate cleanup
+   * Emergency duplicate cleanup - SQLite compatible version
    */
   async emergencyDuplicateCleanup(): Promise<number> {
     log.warn('🚨 Starting emergency duplicate cleanup...');
     
-    const deletedCount = await this.databaseManager.run(`
-      DELETE FROM messages WHERE id IN (
-        SELECT id FROM (
-          SELECT id, ROW_NUMBER() OVER (
-            PARTITION BY phone_number, content 
-            ORDER BY timestamp DESC
-          ) as rn FROM messages
-        ) WHERE rn > 1
-      )
+    // SQLite doesn't support ROW_NUMBER() in DELETE, so we'll use a different approach
+    // First, find duplicates
+    const duplicates = await this.databaseManager.query(`
+      SELECT phone_number, content, COUNT(*) as count, MIN(timestamp) as keep_timestamp
+      FROM messages 
+      GROUP BY phone_number, content 
+      HAVING COUNT(*) > 1
     `);
     
-    log.info(`🧹 Emergency cleanup removed ${deletedCount} duplicate messages`);
-    return deletedCount;
+    let totalDeleted = 0;
+    
+    // Delete duplicates for each group, keeping only the oldest message
+    for (const duplicate of duplicates) {
+      const deleteResult = await this.databaseManager.run(`
+        DELETE FROM messages 
+        WHERE phone_number = ? AND content = ? AND timestamp != ?
+      `, [duplicate.phone_number, duplicate.content, duplicate.keep_timestamp]);
+      
+      totalDeleted += deleteResult.changes || 0;
+      log.info(`🧹 Removed ${(deleteResult.changes || 0)} duplicates for "${duplicate.content.substring(0, 50)}..."`);
+    }
+    
+    log.info(`🧹 Emergency cleanup removed ${totalDeleted} duplicate messages total`);
+    return totalDeleted;
   }
 
   cleanup(): void {

@@ -87,6 +87,13 @@ declare global {
         addToFolder: (transferId: string, folderId: string) => Promise<void>;
       };
 
+      // Database operations
+      database: {
+        cleanupDuplicates: () => Promise<any>;
+        emergencyMessageCleanup: () => Promise<any>;
+        getStats: () => Promise<any>;
+      };
+
       // System operations
       system: {
         minimize: () => void;

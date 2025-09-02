@@ -130,6 +130,7 @@ interface UnisonXAPI {
   // Database operations
   database: {
     cleanupDuplicates: () => Promise<any>;
+    emergencyMessageCleanup: () => Promise<any>;
     getStats: () => Promise<any>;
   };
 
